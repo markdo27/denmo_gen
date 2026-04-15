@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Center } from '@react-three/drei';
-import { Leva, useControls, folder } from 'leva';
+import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { Download, Lightbulb } from 'lucide-react';
