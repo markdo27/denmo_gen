@@ -595,7 +595,8 @@ export default function App() {
         },
         radii: { xs: '0', sm: '0', md: '0', lg: '0', xl: '0' },
         fonts: { mono: "'Space Mono', monospace", sans: "'Space Mono', monospace" },
-        borderWidths: { folder: '1px', input: '1px', root: '1px', hover: '1px' }
+        borderWidths: { folder: '1px', input: '1px', root: '1px', hover: '1px' },
+        sizes: { rootWidth: '400px', controlWidth: '200px' }
       }} />
 
       <div className="footer-container">
