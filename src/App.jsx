@@ -423,6 +423,6 @@ export default function App() {
         
         <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
       </Canvas>
-    </>
+    </div>
   );
 }
