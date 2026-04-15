@@ -17,16 +17,16 @@ function smoothNoise3D(x, y, z) {
 
 // Procedural Geometry Generator for Lamp
 function generateLampPoints(params, customProfileData = []) {
-  const { height, bottomRadius, midRadius, topRadius, thickness, verticalProfile, closeTop, closeBottom, solidVaseMode, layerHeight } = params;
+  const { height, bottomRadius, midRadius, topRadius, thickness, verticalProfile, closeTop, closeBottom, solidVaseMode, verticalSegments } = params;
   
   // Calculate segments from physical dimensions (height cm -> mm / layerHeight)
   // Default to 0.2 if undefined to safeguard older states
-  const verticalSegments = Math.round((height * 10) / (layerHeight || 0.2));
+  const vSegments = verticalSegments || 100;
   
   const outerPoints = [];
 
-  for (let i = 0; i <= verticalSegments; i++) {
-    const t = i / verticalSegments;
+  for (let i = 0; i <= vSegments; i++) {
+    const t = i / vSegments;
     const y = t * height;
     
     let evalT = t;
@@ -458,12 +458,15 @@ export default function App() {
       topRadius: { value: 4, min: 1, max: 15, step: 0.1 },
       thickness: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
     }, { collapsed: true }),
+    Resolution: folder({
+      verticalSegments: { value: 100, min: 10, max: 800, step: 1, label: 'Vertical Steps' },
+      radialSegments: { value: 64, min: 12, max: 200, step: 1, label: 'Radial Steps' },
+    }, { collapsed: false }),
     'Print Settings': folder({
       layerHeight: { value: 0.2, min: 0.08, max: 0.8, step: 0.04, label: 'Layer Height (mm)' },
       nozzleSize: { value: 0.4, min: 0.2, max: 1.2, step: 0.1, label: 'Nozzle Size (mm)' },
       bedX: { value: 220, min: 100, max: 500, step: 10, label: 'Bed X Size' },
       bedY: { value: 220, min: 100, max: 500, step: 10, label: 'Bed Y Size' },
-      radialSegments: { value: 64, min: 12, max: 200, step: 1, label: 'Radial Steps' },
     }, { collapsed: true }),
     Modifiers: folder({
       mirrorX: false,
