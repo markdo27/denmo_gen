@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Center } from '@react-three
 import { Leva, useControls, folder } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { Download } from 'lucide-react';
+import { Download, Lightbulb } from 'lucide-react';
 import './index.css';
 
 // Procedural Geometry Generator for Lamp
@@ -45,7 +45,7 @@ function generateLampPoints(params) {
   return [...outerPoints, ...innerPoints, outerPoints[0].clone()];
 }
 
-function Lamp({ params, materialProps, meshRef }) {
+function Lamp({ params, materialProps, meshRef, isGlowing }) {
   const points = useMemo(() => generateLampPoints(params), [params]);
   
   // Custom Modifiers (Twist, Ripples)
@@ -84,35 +84,115 @@ function Lamp({ params, materialProps, meshRef }) {
     return geo;
   }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth]);
 
+  const shaderRef = useRef(null);
+
+  useFrame((state) => {
+    if (shaderRef.current) {
+      shaderRef.current.uniforms.isGlowing.value = isGlowing ? 1.0 : 0.0;
+      shaderRef.current.uniforms.innerGlowIntensity.value = params.innerGlowIntensity;
+      shaderRef.current.uniforms.surfaceNoise.value = params.surfaceNoise;
+      shaderRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    }
+  });
+
+  const onBeforeCompile = useMemo(() => (shader) => {
+    shaderRef.current = shader;
+    
+    shader.uniforms.isGlowing = { value: 0.0 };
+    shader.uniforms.innerGlowIntensity = { value: 2.0 };
+    shader.uniforms.surfaceNoise = { value: 0.5 };
+    shader.uniforms.uTime = { value: 0.0 };
+    
+    shader.vertexShader = `
+      varying vec3 vObjPos;
+      varying vec3 vObjNormal;
+      \n${shader.vertexShader}
+    `.replace(
+      '#include <begin_vertex>',
+      `
+      #include <begin_vertex>
+      vObjPos = position;
+      vObjNormal = normal;
+      `
+    );
+
+    const noiseLogic = `
+      uniform float isGlowing;
+      uniform float innerGlowIntensity;
+      uniform float surfaceNoise;
+      uniform float uTime;
+      varying vec3 vObjPos;
+      varying vec3 vObjNormal;
+      
+      float random(vec2 st) {
+          return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+      }
+      float noise(vec2 st) {
+          vec2 i = floor(st);
+          vec2 f = fract(st);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix( mix( random( i + vec2(0.0,0.0) ),
+                           random( i + vec2(1.0,0.0) ), u.x),
+                      mix( random( i + vec2(0.0,1.0) ),
+                           random( i + vec2(1.0,1.0) ), u.x), u.y);
+      }
+    `;
+
+    shader.fragmentShader = noiseLogic + '\n' + shader.fragmentShader;
+    
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `
+      #include <dithering_fragment>
+      
+      // Procedural Surface Noise (Frost/Resin bumps)
+      if (surfaceNoise > 0.0) {
+        float n = noise(vec2(vObjPos.y * 10.0, atan(vObjPos.z, vObjPos.x) * 10.0) + vec2(0.0, uTime * 0.5));
+        gl_FragColor.rgb += vec3(n * 0.15 * surfaceNoise);
+      }
+
+      // Identify inner surface vs outer surface
+      vec3 outwardVector = vec3(vObjPos.x, 0.0, vObjPos.z);
+      if (length(outwardVector) > 0.001) outwardVector = normalize(outwardVector);
+      
+      float isInnerWall = dot(vObjNormal, outwardVector) < 0.0 ? 1.0 : 0.0;
+      
+      if (isInnerWall > 0.5 && isGlowing > 0.5) {
+        // LED interior emission
+        vec3 ledColor = vec3(1.0, 0.8, 0.3) * innerGlowIntensity;
+        gl_FragColor = vec4(ledColor, 1.0);
+      } else if (isGlowing > 0.5) {
+        // Outer wall fresnel rim glow
+        vec3 glowViewDir = normalize(-vViewPosition);
+        float rim = 1.0 - max(0.0, dot(glowViewDir, normal));
+        rim = smoothstep(0.4, 1.0, rim);
+        
+        vec3 rimColor = vec3(1.0, 0.6, 0.1) * innerGlowIntensity; 
+        gl_FragColor = vec4(mix(gl_FragColor.rgb, rimColor, rim), gl_FragColor.a);
+      }
+      `
+    );
+  }, []);
+
   return (
     <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
-      {params.material === 'glass' ? (
-        <meshPhysicalMaterial 
-          {...materialProps}
-          roughness={0.1}
-          transmission={0.9}
-          thickness={1}
-          flatShading={params.flatShading}
-        />
-      ) : params.material === 'metallic' ? (
-        <meshStandardMaterial 
-          {...materialProps}
-          metalness={0.8}
-          roughness={0.2}
-          flatShading={params.flatShading}
-        />
-      ) : (
-        <meshStandardMaterial 
-          {...materialProps}
-          flatShading={params.flatShading}
-        />
-      )}
+      <meshPhysicalMaterial 
+        {...materialProps}
+        roughness={params.material === 'glass' ? 0.1 : params.material === 'metallic' ? 0.2 : 0.8}
+        metalness={params.material === 'metallic' ? 0.8 : 0.0}
+        transmission={params.material === 'glass' ? 0.9 : 0.0}
+        thickness={1}
+        flatShading={params.flatShading}
+        iridescence={params.iridescence}
+        onBeforeCompile={onBeforeCompile}
+      />
     </mesh>
   );
 }
 
 export default function App() {
   const meshRef = useRef();
+  const [isGlowing, setIsGlowing] = useState(false);
 
   const params = useControls('Lamp Shape', {
     Profile: folder({
@@ -132,6 +212,11 @@ export default function App() {
       radialRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Rib Depth' },
       verticalRipples: { value: 0, min: 0, max: 32, step: 1, label: 'Wave Freq' },
       verticalRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Wave Depth' },
+    }),
+    Shaders: folder({
+      innerGlowIntensity: { value: 3.0, min: 0, max: 10, step: 0.1 },
+      surfaceNoise: { value: 0.5, min: 0, max: 2, step: 0.05 },
+      iridescence: { value: 0.5, min: 0, max: 1, step: 0.05 },
     })
   });
 
@@ -168,6 +253,10 @@ export default function App() {
       </div>
       
       <div className="ui-container">
+        <button className="export-btn" onClick={() => setIsGlowing(!isGlowing)} style={{ background: isGlowing ? 'rgba(245, 158, 11, 0.4)' : '' }}>
+          <Lightbulb size={16} color={isGlowing ? '#fbbf24' : '#ffffff'} />
+          {isGlowing ? 'Turn Off Glow' : 'Simulate Glow'}
+        </button>
         <button className="export-btn" onClick={exportSTL}>
           <Download size={16} />
           Export STL
@@ -210,12 +299,12 @@ export default function App() {
         <spotLight position={[10, 20, 10]} intensity={styleParams.lightIntensity * 2} penumbra={0.5} castShadow shadow-bias={-0.0001} />
         <pointLight position={[-10, -10, -10]} intensity={styleParams.lightIntensity * 0.5} color="#f59e0b" />
         
-        <Environment preset={styleParams.environment} />
+        <Environment preset={isGlowing ? 'park' : styleParams.environment} />
         
         <Center y={0}>
-          <Lamp params={params} materialProps={{ color: styleParams.color }} meshRef={meshRef} />
+          <Lamp params={params} materialProps={{ color: styleParams.color }} meshRef={meshRef} isGlowing={isGlowing} />
           {/* Add a light source inside the lamp if it's open top/glass */}
-          <pointLight position={[0, params.height / 2, 0]} intensity={2.0} color={styleParams.color} distance={params.height * 2.5} />
+          <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
         </Center>
         
         <ContactShadows position={[0, -0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
