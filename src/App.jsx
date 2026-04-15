@@ -17,25 +17,30 @@ function generateLampPoints(params, customProfileData = []) {
     const t = i / verticalSegments;
     const y = t * height;
     
+    let evalT = t;
+    if (params.mirrorY && t > 0.5) {
+       evalT = 1.0 - t;
+    }
+    
     let r = bottomRadius;
     if (verticalProfile === 'vase') {
       const p0 = bottomRadius;
       const p1 = midRadius;
       const p2 = topRadius;
-      r = Math.pow(1 - t, 2) * p0 + 2 * (1 - t) * t * p1 + Math.pow(t, 2) * p2;
+      r = Math.pow(1 - evalT, 2) * p0 + 2 * (1 - evalT) * evalT * p1 + Math.pow(evalT, 2) * p2;
     } else if (verticalProfile === 'custom') {
       if (!customProfileData || customProfileData.length === 0) {
         r = bottomRadius; // fallback
       } else {
-        const dataIndex = Math.min(customProfileData.length - 1, Math.floor(t * customProfileData.length));
+        const dataIndex = Math.min(customProfileData.length - 1, Math.floor(evalT * customProfileData.length));
         r = Math.max(0.01, customProfileData[dataIndex] * bottomRadius);
       }
     } else if (verticalProfile === 'column') {
       r = bottomRadius;
     } else if (verticalProfile === 'cone') {
-      r = bottomRadius * (1 - t) + topRadius * t;
+      r = bottomRadius * (1 - evalT) + topRadius * evalT;
     } else if (verticalProfile === 'sphere') {
-      r = bottomRadius * Math.sin(t * Math.PI);
+      r = bottomRadius * Math.sin(evalT * Math.PI);
       if (r < 0.05) r = 0.05; // Prevent normal clipping at pure zero
     }
     
@@ -94,35 +99,48 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
   const geometry = useMemo(() => {
     const geo = new THREE.LatheGeometry(points, params.radialSegments, 0, Math.PI * 2);
     
-    if (params.twistAngle > 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0 || params.crossSection !== 'circle') {
+    // We include mirrorX and mirrorZ triggers so they execute even if twist is 0
+    if (params.twistAngle !== 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0 || params.crossSection !== 'circle' || params.mirrorX || params.mirrorZ) {
       const positionAttribute = geo.attributes.position;
       const vertex = new THREE.Vector3();
       for (let i = 0; i < positionAttribute.count; i++) {
         vertex.fromBufferAttribute(positionAttribute, i);
         
         const originalAngle = Math.atan2(vertex.z, vertex.x);
+        
+        let evalAngle = originalAngle;
+        if (params.mirrorX && vertex.x < 0) evalAngle = Math.PI - originalAngle;
+        if (params.mirrorZ && vertex.z < 0) evalAngle = -evalAngle;
+
         let r = Math.sqrt(vertex.x * vertex.x + vertex.z * vertex.z);
         
-        // 1. Calculate Cross-Section profiling using the untwisted angle
+        // 1. Calculate Cross-Section profiling using the eval Angle
         if (params.crossSection === 'square') {
-           r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(originalAngle)), Math.abs(Math.sin(originalAngle)));
+           r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(evalAngle)), Math.abs(Math.sin(evalAngle)));
         } else if (params.crossSection === 'hexagon') {
            const hexAng = Math.PI / 3;
-           const wrapped = Math.abs((originalAngle % hexAng + hexAng) % hexAng - hexAng/2);
+           const wrapped = Math.abs((evalAngle % hexAng + hexAng) % hexAng - hexAng/2);
            r *= Math.cos(hexAng/2) / Math.cos(wrapped);
         } else if (params.crossSection === 'star') {
-           r *= 1.0 - (Math.sin(originalAngle * 5) * 0.5 + 0.5) * 0.4;
+           r *= 1.0 - (Math.sin(evalAngle * 5) * 0.5 + 0.5) * 0.4;
         }
 
         const twistY = vertex.y / params.height;
-        const radialRipple = params.radialRippleDepth > 0 ? Math.sin(originalAngle * params.radialRipples) * params.radialRippleDepth : 0;
-        const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(twistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
+        let evalTwistY = twistY;
+        if (params.mirrorY && twistY > 0.5) evalTwistY = 1.0 - twistY;
+
+        const radialRipple = params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
+        const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
         
         r += radialRipple + verticalRipple;
         
         // 2. NOW we add the twist rotation to physically twist the generated cross-section
-        const twistRotation = twistY * params.twistAngle;
-        const finalAngle = originalAngle + twistRotation;
+        const twistRotation = evalTwistY * params.twistAngle;
+        let finalAngle = evalAngle + twistRotation;
+
+        // Inverse mapping to project symmetry back to absolute space
+        if (params.mirrorZ && vertex.z < 0) finalAngle = -finalAngle;
+        if (params.mirrorX && vertex.x < 0) finalAngle = Math.PI - finalAngle;
         
         const x = r * Math.cos(finalAngle);
         const z = r * Math.sin(finalAngle);
@@ -133,7 +151,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
     }
     
     return geo;
-  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth, params.crossSection]);
+  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth, params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ]);
 
   const shaderRef = useRef(null);
 
@@ -231,8 +249,6 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
       geometry={geometry} 
       castShadow 
       receiveShadow
-      scale={[params.mirrorX ? -1 : 1, params.mirrorY ? -1 : 1, params.mirrorZ ? -1 : 1]}
-      position={[0, params.mirrorY ? params.height : 0, 0]}
     >
       <meshPhysicalMaterial 
         {...materialProps}
