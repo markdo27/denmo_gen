@@ -362,21 +362,24 @@ export default function App() {
         accept="image/*" 
         onChange={handleImageUpload} 
       />
-      <div className="ui-overlay">
-        <h1 className="logo-text">ĐÈNMỜ Generator</h1>
-        <div className="controls-panel">
-          <button 
-            className={`action-btn ${isGlowing ? 'active-glow' : ''}`}
-            onClick={() => setIsGlowing(!isGlowing)}
-          >
-            <Lightbulb size={18} />
-            {isGlowing ? 'Glow Active' : 'Simulate Glow'}
-          </button>
-          <button className="action-btn" onClick={exportSTL}>
-            <Download size={18} />
-            Export STL
-          </button>
-        </div>
+      <div className="title-container">
+        <h1 className="app-title">ĐÈNMỜ</h1>
+        <div className="app-subtitle">Generator</div>
+      </div>
+      
+      <div className="ui-container">
+        <button 
+          className="export-btn"
+          onClick={() => setIsGlowing(!isGlowing)}
+          style={{ background: isGlowing ? 'rgba(245, 158, 11, 0.4)' : '' }}
+        >
+          <Lightbulb size={18} color={isGlowing ? '#fbbf24' : '#ffffff'} />
+          {isGlowing ? 'Glow Active' : 'Simulate Glow'}
+        </button>
+        <button className="export-btn" onClick={exportSTL}>
+          <Download size={18} />
+          Export STL
+        </button>
       </div>
 
       <Leva theme={{

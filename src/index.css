@@ -30,9 +30,10 @@ body {
   background: radial-gradient(circle at 50% 50%, #1e1e24 0%, #0b0c10 100%);
 }
 
-#root {
+#root, .app-container {
   width: 100vw;
   height: 100vh;
+  position: relative;
 }
 
 .ui-container {
