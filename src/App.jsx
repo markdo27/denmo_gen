@@ -549,7 +549,7 @@ export default function App() {
         tabIndex="-1"
       />
       <div className="title-container">
-        <div className="app-title">PROJECT:</div>
+        <div className="app-title">DENMO_PROJECT:</div>
         <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
       </div>
       
@@ -601,6 +601,7 @@ export default function App() {
       <div className="footer-container">
         <div>ALL RIGHTS RESERVED.</div>
         <div className="footer-logo">
+           <a href="https://www.facebook.com/mark.do2102/" target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none', marginRight: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>FACEBOOK <ArrowUpRight size={14}/></a>
            <span>DESIGN & DEV BY US</span> 
            <div style={{width: 12, height: 12, background: 'var(--text-primary)'}}></div>
            <div style={{width: 12, height: 12, background: 'var(--text-secondary)'}}></div>
