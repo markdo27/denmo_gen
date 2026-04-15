@@ -645,7 +645,7 @@ export default function App() {
           <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
         </Center>
         
-        <ContactShadows position={[0, -0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
+        <ContactShadows position={[0, -params.height / 2 - 0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
         
         <Grid 
           infiniteGrid 
@@ -654,7 +654,7 @@ export default function App() {
           cellColor="#222222" 
           cellSize={1} 
           sectionSize={5} 
-          position={[0, -0.02, 0]} 
+          position={[0, -params.height / 2 - 0.02, 0]} 
         />
         
         <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
