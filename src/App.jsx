@@ -61,31 +61,32 @@ function Lamp({ params, materialProps, meshRef, isGlowing }) {
       for (let i = 0; i < positionAttribute.count; i++) {
         vertex.fromBufferAttribute(positionAttribute, i);
         
-        let currentAngle = Math.atan2(vertex.z, vertex.x);
+        const originalAngle = Math.atan2(vertex.z, vertex.x);
         let r = Math.sqrt(vertex.x * vertex.x + vertex.z * vertex.z);
         
-        const twistY = vertex.y / params.height;
-        const twistRotation = twistY * params.twistAngle;
-        currentAngle += twistRotation;
-        
-        // Horizontal Cross-Section Profiler
+        // 1. Calculate Cross-Section profiling using the untwisted angle
         if (params.crossSection === 'square') {
-           r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(currentAngle)), Math.abs(Math.sin(currentAngle)));
+           r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(originalAngle)), Math.abs(Math.sin(originalAngle)));
         } else if (params.crossSection === 'hexagon') {
            const hexAng = Math.PI / 3;
-           const wrapped = Math.abs((currentAngle % hexAng + hexAng) % hexAng - hexAng/2);
+           const wrapped = Math.abs((originalAngle % hexAng + hexAng) % hexAng - hexAng/2);
            r *= Math.cos(hexAng/2) / Math.cos(wrapped);
         } else if (params.crossSection === 'star') {
-           r *= 1.0 - (Math.sin(currentAngle * 5) * 0.5 + 0.5) * 0.4;
+           r *= 1.0 - (Math.sin(originalAngle * 5) * 0.5 + 0.5) * 0.4;
         }
 
-        const radialRipple = params.radialRippleDepth > 0 ? Math.sin(currentAngle * params.radialRipples) * params.radialRippleDepth : 0;
+        const twistY = vertex.y / params.height;
+        const radialRipple = params.radialRippleDepth > 0 ? Math.sin(originalAngle * params.radialRipples) * params.radialRippleDepth : 0;
         const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(twistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
         
         r += radialRipple + verticalRipple;
         
-        const x = r * Math.cos(currentAngle);
-        const z = r * Math.sin(currentAngle);
+        // 2. NOW we add the twist rotation to physically twist the generated cross-section
+        const twistRotation = twistY * params.twistAngle;
+        const finalAngle = originalAngle + twistRotation;
+        
+        const x = r * Math.cos(finalAngle);
+        const z = r * Math.sin(finalAngle);
         
         positionAttribute.setXYZ(i, x, vertex.y, z);
       }
