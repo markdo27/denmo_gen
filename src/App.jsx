@@ -9,10 +9,9 @@ import './index.css';
 
 // Procedural Geometry Generator for Lamp
 function generateLampPoints(params) {
-  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile } = params;
+  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile, closeTop, closeBottom } = params;
   
   const outerPoints = [];
-  const innerPoints = [];
 
   for (let i = 0; i <= verticalSegments; i++) {
     const t = i / verticalSegments;
@@ -36,17 +35,50 @@ function generateLampPoints(params) {
     outerPoints.push(new THREE.Vector2(r, y));
   }
 
-  // Inner profile (offset by thickness inward)
-  // For simplicity, we just subtract thickness from X.
-  // In reality, normal-based offset is better, but this works for vertical-ish lamps.
-  for (let i = verticalSegments; i >= 0; i--) {
-    const p = outerPoints[i];
-    const rInner = Math.max(0.1, p.x - thickness);
-    innerPoints.push(new THREE.Vector2(rInner, p.y));
+  const finalPoints = [];
+
+  // Bottom Cap Outer
+  if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, 0));
+
+  // Outer Wall
+  for (let i = 0; i < outerPoints.length; i++) finalPoints.push(outerPoints[i].clone());
+
+  // Top Cap Outer
+  if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height));
+  
+  // Top Cap Inner (Ceiling)
+  if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height - thickness));
+
+  // Inner Wall
+  for (let i = outerPoints.length - 1; i >= 0; i--) {
+    let p = outerPoints[i];
+    let y = p.y;
+    
+    if (closeTop && y > height - thickness) y = height - thickness;
+    if (closeBottom && y < thickness) y = thickness;
+    
+    let rInner = Math.max(0.0001, p.x - thickness);
+    
+    let nextPoint = new THREE.Vector2(rInner, y);
+    // filter zero-length segments
+    if (finalPoints.length > 0) {
+      let lastPoint = finalPoints[finalPoints.length - 1];
+      if (Math.abs(nextPoint.x - lastPoint.x) < 0.001 && Math.abs(nextPoint.y - lastPoint.y) < 0.001) {
+        continue;
+      }
+    }
+    finalPoints.push(nextPoint);
   }
 
-  // Combine points to create a closed loop for Lathe (outer going up, inner going down)
-  return [...outerPoints, ...innerPoints, outerPoints[0].clone()];
+  // Bottom Cap Inner (Floor)
+  if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, thickness));
+
+  // Close Loop
+  if (finalPoints.length > 0) {
+      finalPoints.push(finalPoints[0].clone());
+  }
+
+  return finalPoints;
 }
 
 function Lamp({ params, materialProps, meshRef, isGlowing }) {
@@ -210,6 +242,8 @@ export default function App() {
     Profile: folder({
       verticalProfile: { options: ['vase', 'column', 'cone', 'sphere'] },
       crossSection: { options: ['circle', 'square', 'hexagon', 'star'] },
+      closeTop: false,
+      closeBottom: false,
       height: { value: 10, min: 2, max: 30, step: 0.1 },
       bottomRadius: { value: 5, min: 1, max: 15, step: 0.1 },
       midRadius: { value: 3, min: 1, max: 15, step: 0.1 },
