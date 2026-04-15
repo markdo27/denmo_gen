@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Center } from '@react-three
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { Download, Lightbulb, Printer } from 'lucide-react';
+import { Download, Lightbulb, Printer, ArrowUpRight } from 'lucide-react';
 import './index.css';
 
 // Smooth pseudo-3D noise function for organic rocky displacements
@@ -549,8 +549,8 @@ export default function App() {
         tabIndex="-1"
       />
       <div className="title-container">
-        <h1 className="app-title">ĐÈNMỜ</h1>
-        <div className="app-subtitle">Generator</div>
+        <div className="app-title">PROJECT:</div>
+        <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
       </div>
       
       <div className="ui-container">
@@ -560,41 +560,52 @@ export default function App() {
           aria-pressed={isGlowing}
           aria-label="Toggle inner glow simulation"
         >
-          <Lightbulb size={18} aria-hidden="true" color={isGlowing ? '#ea580c' : 'currentColor'} />
-          {isGlowing ? 'Glow Active' : 'Simulate Glow'}
+          <div className="btn-text">SIMULATE GLOW</div>
+          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
         </button>
         <button 
           className="export-btn" 
           onClick={exportSTL}
           aria-label="Export generated lamp shape as STL file"
         >
-          <Download size={18} aria-hidden="true" />
-          Export STL
+          <div className="btn-text">STL FILE</div>
+          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
         </button>
         <button 
           className="export-btn" 
           onClick={exportGCode}
           aria-label="Export generated lamp directly as printable G-Code"
-          style={{ borderColor: 'var(--accent-color)' }}
         >
-          <Printer size={18} aria-hidden="true" />
-          Export G-Code
+          <div className="btn-text">G-CODE</div>
+          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
         </button>
       </div>
 
       <Leva theme={{
         colors: {
-          elevation1: '#1a1a1a',
-          elevation2: '#2a2a2a',
-          elevation3: '#3a3a3a',
-          accent1: '#ff6200',
-          accent2: '#ff8800',
-          accent3: '#ffaa00',
+          elevation1: '#000000',
+          elevation2: '#111111',
+          elevation3: '#222222',
+          accent1: '#ffffff',
+          accent2: '#d0f0ec',
+          accent3: '#d0f0ec',
           highlight1: '#ffffff',
-          highlight2: '#aaaaaa',
+          highlight2: '#a0a0a0',
           highlight3: '#888888',
-        }
+        },
+        radii: { xs: '0', sm: '0', md: '0', lg: '0', xl: '0' },
+        fonts: { mono: "'Space Mono', monospace", sans: "'Space Mono', monospace" },
+        borderWidths: { folder: '1px', input: '1px', root: '1px', hover: '1px' }
       }} />
+
+      <div className="footer-container">
+        <div>ALL RIGHTS RESERVED.</div>
+        <div className="footer-logo">
+           <span>DESIGN & DEV BY US</span> 
+           <div style={{width: 12, height: 12, background: 'var(--text-primary)'}}></div>
+           <div style={{width: 12, height: 12, background: 'var(--text-secondary)'}}></div>
+        </div>
+      </div>
 
       <Canvas 
         shadows 
