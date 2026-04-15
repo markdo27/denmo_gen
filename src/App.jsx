@@ -308,6 +308,94 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
   );
 }
 
+function GCodeViewer({ params, customProfileData }) {
+  const { geometry } = useMemo(() => {
+    const points = [];
+    const colors = [];
+    
+    const segments = Math.round((params.height * 10) / params.layerHeight);
+    const rSegments = params.radialSegments;
+    const colorBottom = new THREE.Color(0xd900ff); // Magenta/Purple
+    const colorTop = new THREE.Color(0x00ffff); // Cyan
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const py = t * params.height;
+      let evalT = t;
+      if (params.mirrorY && t > 0.5) evalT = 1.0 - t;
+      
+      let r = params.bottomRadius;
+      if (params.verticalProfile === 'vase') {
+        const p0 = params.bottomRadius, p1 = params.midRadius, p2 = params.topRadius;
+        r = Math.pow(1 - evalT, 2) * p0 + 2 * (1 - evalT) * evalT * p1 + Math.pow(evalT, 2) * p2;
+      } else if (params.verticalProfile === 'cone') {
+        r = params.bottomRadius * (1 - evalT) + params.topRadius * evalT;
+      } else if (params.verticalProfile === 'sphere') {
+        r = params.bottomRadius * Math.sin(evalT * Math.PI);
+        if (r < 0.05) r = 0.05;
+      } else if (params.verticalProfile === 'hourglass') {
+        r = params.bottomRadius * Math.max(0.2, 1.0 - Math.min(evalT, 1.0 - evalT) * 1.5);
+      } else if (params.verticalProfile === 'teardrop') {
+        r = params.bottomRadius * Math.sin(evalT * Math.PI) * Math.exp(-evalT * 2);
+      } else if (params.verticalProfile === 'pagoda') {
+        const tierEval = (evalT * 4) % 1.0;
+        r = params.bottomRadius * (1.0 - evalT) * (1.0 + tierEval * 0.5);
+        if (r < 0.05) r = 0.05;
+      } else if (params.verticalProfile === 'custom' && customProfileData && customProfileData.length > 0) {
+        const dataIndex = Math.min(customProfileData.length - 1, Math.floor(evalT * customProfileData.length));
+        r = Math.max(0.01, customProfileData[dataIndex] * params.bottomRadius);
+      }
+
+      for (let j = 0; j <= rSegments; j++) {
+        const ringT = j / rSegments;
+        const spiralY = py + (1.0 / segments) * ringT * params.height;
+        
+        const twistY = spiralY / params.height;
+        let evalTwistY = twistY;
+        if (params.mirrorY && twistY > 0.5) evalTwistY = 1.0 - twistY;
+        
+        let evalAngle = (j / rSegments) * Math.PI * 2;
+        let currentR = r;
+        
+        if (params.crossSection === 'square') currentR *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(evalAngle)), Math.abs(Math.sin(evalAngle)));
+        else if (params.crossSection === 'hexagon') currentR *= Math.cos(Math.PI/6) / Math.cos(Math.abs((evalAngle % (Math.PI/3) + Math.PI/3) % (Math.PI/3) - Math.PI/6));
+        else if (params.crossSection === 'triangle') currentR *= Math.cos(Math.PI/3) / Math.cos(Math.abs((evalAngle % (Math.PI*2/3) + Math.PI*2/3) % (Math.PI*2/3) - Math.PI/3));
+        else if (params.crossSection === 'star') currentR *= 1.0 - (Math.sin(evalAngle * 5) * 0.5 + 0.5) * 0.4;
+        else if (params.crossSection === 'gear') currentR *= 1.0 + (Math.sign(Math.sin(evalAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
+        
+        currentR += params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
+        currentR += params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
+        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
+        
+        if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
+
+        let finalAngle = evalAngle + (evalTwistY * params.twistAngle);
+        
+        const x = currentR * Math.cos(finalAngle);
+        const z = -currentR * Math.sin(finalAngle);
+        const y = Math.max(params.layerHeight / 10, spiralY);
+        
+        points.push(x, y, z);
+        
+        const lerpColor = colorBottom.clone().lerp(colorTop, spiralY / params.height);
+        colors.push(lerpColor.r, lerpColor.g, lerpColor.b);
+      }
+    }
+    
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    return { geometry: geo };
+  }, [params, customProfileData]);
+
+  return (
+    <line geometry={geometry}>
+      <lineBasicMaterial vertexColors={true} linewidth={1} />
+    </line>
+  );
+}
+
 export default function App() {
   const [isGlowing, setIsGlowing] = useState(false);
   const meshRef = useRef();
@@ -542,11 +630,6 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
   };
-  
-  const currentGCode = useMemo(() => {
-    if (viewMode === 'G-CODE') return generateGCodeString();
-    return "";
-  }, [viewMode, params, customProfileData]);
 
   return (
     <div className="app-container">
@@ -633,58 +716,56 @@ export default function App() {
         </div>
       </div>
 
-      {viewMode === '3D' ? (
-        <Canvas 
-          shadows 
-          camera={{ position: [0, 15, 30], fov: 45 }}
-          dpr={[1, 2]}
-          aria-label="Interactive 3D Lamp Generator Viewport"
-          role="img"
-        >
-          <color attach="background" args={['#0a0a0a']} />
-          
-          {/* Dynamic environment map toggle */}
-          <Environment preset={isGlowing ? 'park' : 'city'} background={false} />
+      <Canvas 
+        shadows 
+        camera={{ position: [0, 15, 30], fov: 45 }}
+        dpr={[1, 2]}
+        aria-label="Interactive 3D Lamp Generator Viewport"
+        role="img"
+      >
+        <color attach="background" args={['#0a0a0a']} />
+        
+        <Environment preset={isGlowing ? 'park' : 'city'} background={false} />
 
-          <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
-          <directionalLight 
-            position={[10, 20, 10]} 
-            intensity={isGlowing ? styleParams.lightIntensity * 0.5 : styleParams.lightIntensity * 1.5} 
-            castShadow 
-            shadow-mapSize={[1024, 1024]}
-          />
-          
-          <Center>
-            <Lamp 
-              params={params} 
-              customProfileData={customProfileData}
-              materialProps={{ color: styleParams.color }} 
-              meshRef={meshRef}
-              isGlowing={isGlowing}
-            />
-            {/* Add a light source inside the lamp if it's open top/glass */}
-            <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
-          </Center>
-          
-          <ContactShadows position={[0, -params.height / 2 - 0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
-          
-          <Grid 
-            infiniteGrid 
-            fadeDistance={60} 
-            sectionColor="#444444" 
-            cellColor="#222222" 
-            cellSize={1} 
-            sectionSize={5} 
-            position={[0, -params.height / 2 - 0.02, 0]} 
-          />
-          
-          <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
-        </Canvas>
-      ) : (
-        <div className="gcode-viewer-container">
-          <pre className="gcode-viewer"><code>{currentGCode}</code></pre>
-        </div>
-      )}
+        <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
+        <directionalLight 
+          position={[10, 20, 10]} 
+          intensity={isGlowing ? styleParams.lightIntensity * 0.5 : styleParams.lightIntensity * 1.5} 
+          castShadow 
+          shadow-mapSize={[1024, 1024]}
+        />
+        
+        <Center bottom>
+          {viewMode === '3D' ? (
+            <>
+              <Lamp 
+                params={params} 
+                customProfileData={customProfileData}
+                materialProps={{ color: styleParams.color }} 
+                meshRef={meshRef}
+                isGlowing={isGlowing}
+              />
+              <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
+            </>
+          ) : (
+            <GCodeViewer params={params} customProfileData={customProfileData} />
+          )}
+        </Center>
+        
+        <ContactShadows position={[0, -params.height / 2 - 0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
+        
+        <Grid 
+          infiniteGrid 
+          fadeDistance={60} 
+          sectionColor="#444444" 
+          cellColor="#222222" 
+          cellSize={1} 
+          sectionSize={5} 
+          position={[0, -params.height / 2 - 0.02, 0]} 
+        />
+        
+        <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
+      </Canvas>
     </div>
   );
 }
