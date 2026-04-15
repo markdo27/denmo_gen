@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, Center } from '@react-three/drei';
+import { OrbitControls, Environment, ContactShadows, Center, Grid } from '@react-three/drei';
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
@@ -646,6 +646,16 @@ export default function App() {
         </Center>
         
         <ContactShadows position={[0, -0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
+        
+        <Grid 
+          infiniteGrid 
+          fadeDistance={60} 
+          sectionColor="#444444" 
+          cellColor="#222222" 
+          cellSize={1} 
+          sectionSize={5} 
+          position={[0, -0.02, 0]} 
+        />
         
         <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
       </Canvas>
