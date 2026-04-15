@@ -9,26 +9,30 @@ import './index.css';
 
 // Procedural Geometry Generator for Lamp
 function generateLampPoints(params) {
-  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments } = params;
+  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile } = params;
   
   const outerPoints = [];
   const innerPoints = [];
 
-  // Create a profile using a curve
-  // Bottom (y=0) to Top (y=height)
   for (let i = 0; i <= verticalSegments; i++) {
     const t = i / verticalSegments;
     const y = t * height;
     
-    // Simple interpolation for radius (Quadratic Bezier-like: midRadius is the control point)
-    // t varies from 0 to 1
-    const p0 = bottomRadius;
-    const p1 = midRadius;
-    const p2 = topRadius;
+    let r = bottomRadius;
+    if (verticalProfile === 'vase') {
+      const p0 = bottomRadius;
+      const p1 = midRadius;
+      const p2 = topRadius;
+      r = Math.pow(1 - t, 2) * p0 + 2 * (1 - t) * t * p1 + Math.pow(t, 2) * p2;
+    } else if (verticalProfile === 'column') {
+      r = bottomRadius;
+    } else if (verticalProfile === 'cone') {
+      r = bottomRadius * (1 - t) + topRadius * t;
+    } else if (verticalProfile === 'sphere') {
+      r = bottomRadius * Math.sin(t * Math.PI);
+      if (r < 0.05) r = 0.05; // Prevent normal clipping at pure zero
+    }
     
-    const r = Math.pow(1 - t, 2) * p0 + 2 * (1 - t) * t * p1 + Math.pow(t, 2) * p2;
-    
-    // Add ripples if we want, but let's keep it simple for Lathe
     outerPoints.push(new THREE.Vector2(r, y));
   }
 
@@ -48,17 +52,15 @@ function generateLampPoints(params) {
 function Lamp({ params, materialProps, meshRef, isGlowing }) {
   const points = useMemo(() => generateLampPoints(params), [params]);
   
-  // Custom Modifiers (Twist, Ripples)
   const geometry = useMemo(() => {
     const geo = new THREE.LatheGeometry(points, params.radialSegments, 0, Math.PI * 2);
     
-    if (params.twistAngle > 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0) {
+    if (params.twistAngle > 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0 || params.crossSection !== 'circle') {
       const positionAttribute = geo.attributes.position;
       const vertex = new THREE.Vector3();
       for (let i = 0; i < positionAttribute.count; i++) {
         vertex.fromBufferAttribute(positionAttribute, i);
         
-        // 1. Twist
         let currentAngle = Math.atan2(vertex.z, vertex.x);
         let r = Math.sqrt(vertex.x * vertex.x + vertex.z * vertex.z);
         
@@ -66,13 +68,22 @@ function Lamp({ params, materialProps, meshRef, isGlowing }) {
         const twistRotation = twistY * params.twistAngle;
         currentAngle += twistRotation;
         
-        // 2. Ripples
+        // Horizontal Cross-Section Profiler
+        if (params.crossSection === 'square') {
+           r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(currentAngle)), Math.abs(Math.sin(currentAngle)));
+        } else if (params.crossSection === 'hexagon') {
+           const hexAng = Math.PI / 3;
+           const wrapped = Math.abs((currentAngle % hexAng + hexAng) % hexAng - hexAng/2);
+           r *= Math.cos(hexAng/2) / Math.cos(wrapped);
+        } else if (params.crossSection === 'star') {
+           r *= 1.0 - (Math.sin(currentAngle * 5) * 0.5 + 0.5) * 0.4;
+        }
+
         const radialRipple = params.radialRippleDepth > 0 ? Math.sin(currentAngle * params.radialRipples) * params.radialRippleDepth : 0;
         const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(twistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
         
         r += radialRipple + verticalRipple;
         
-        // Re-apply to X/Z
         const x = r * Math.cos(currentAngle);
         const z = r * Math.sin(currentAngle);
         
@@ -82,7 +93,7 @@ function Lamp({ params, materialProps, meshRef, isGlowing }) {
     }
     
     return geo;
-  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth]);
+  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth, params.crossSection]);
 
   const shaderRef = useRef(null);
 
@@ -196,6 +207,8 @@ export default function App() {
 
   const params = useControls('Lamp Shape', {
     Profile: folder({
+      verticalProfile: { options: ['vase', 'column', 'cone', 'sphere'] },
+      crossSection: { options: ['circle', 'square', 'hexagon', 'star'] },
       height: { value: 10, min: 2, max: 30, step: 0.1 },
       bottomRadius: { value: 5, min: 1, max: 15, step: 0.1 },
       midRadius: { value: 3, min: 1, max: 15, step: 0.1 },
