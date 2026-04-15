@@ -314,7 +314,7 @@ function GCodeViewer({ params, customProfileData }) {
     const colors = [];
     
     const segments = Math.round((params.height * 10) / params.layerHeight);
-    const rSegments = params.radialSegments;
+    const rSegments = Math.max(3, params.radialSegments);
     const colorBottom = new THREE.Color(0xd900ff); // Magenta/Purple
     const colorTop = new THREE.Color(0x00ffff); // Cyan
     
@@ -459,8 +459,8 @@ export default function App() {
       thickness: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
     }, { collapsed: true }),
     Resolution: folder({
-      verticalSegments: { value: 100, min: 10, max: 800, step: 1, label: 'Vertical Steps' },
-      radialSegments: { value: 64, min: 12, max: 200, step: 1, label: 'Radial Steps' },
+      verticalSegments: { value: 100, min: 0, max: 800, step: 1, label: 'Vertical Steps' },
+      radialSegments: { value: 64, min: 0, max: 200, step: 1, label: 'Radial Steps' },
     }, { collapsed: false }),
     'Print Settings': folder({
       layerHeight: { value: 0.2, min: 0.08, max: 0.8, step: 0.04, label: 'Layer Height (mm)' },
@@ -535,7 +535,7 @@ export default function App() {
     
     let lastX = CX, lastY = CY, lastZ = params.layerHeight;
     const segments = Math.round((params.height * 10) / params.layerHeight);
-    const rSegments = params.radialSegments;
+    const rSegments = Math.max(3, params.radialSegments);
     
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
