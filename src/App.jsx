@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Center } from '@react-three
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { Download, Lightbulb } from 'lucide-react';
+import { Download, Lightbulb, Printer } from 'lucide-react';
 import './index.css';
 
 // Smooth pseudo-3D noise function for organic rocky displacements
@@ -416,6 +416,113 @@ export default function App() {
     }
   };
 
+  const exportGCode = () => {
+    const SCALE = 10; 
+    const CX = 110, CY = 110;
+
+    let gcode = "; FLAVOR:Marlin\n";
+    gcode += "; Generated natively by ĐÈNMỜ Generator\n";
+    gcode += "; VASE MODE SPIRAL\n";
+    gcode += "M104 S200 ; Set Hotend Temp\n";
+    gcode += "M140 S60 ; Set Bed Temp\n";
+    gcode += "M109 S200 ; Wait for Hotend\n";
+    gcode += "M190 S60 ; Wait for Bed\n";
+    gcode += "G28 ; Home\n";
+    gcode += "G90 ; Absolute positioning\n";
+    gcode += "M83 ; Extruder relative\n";
+    gcode += "G1 Z0.2 F3000\n";
+    
+    let lastX = CX, lastY = CY, lastZ = 0.2;
+    const segments = params.verticalSegments;
+    const rSegments = params.radialSegments;
+    
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const py = t * params.height;
+      let evalT = t;
+      if (params.mirrorY && t > 0.5) evalT = 1.0 - t;
+      
+      let r = params.bottomRadius;
+      if (params.verticalProfile === 'vase') {
+        const p0 = params.bottomRadius, p1 = params.midRadius, p2 = params.topRadius;
+        r = Math.pow(1 - evalT, 2) * p0 + 2 * (1 - evalT) * evalT * p1 + Math.pow(evalT, 2) * p2;
+      } else if (params.verticalProfile === 'cone') {
+        r = params.bottomRadius * (1 - evalT) + params.topRadius * evalT;
+      } else if (params.verticalProfile === 'sphere') {
+        r = params.bottomRadius * Math.sin(evalT * Math.PI);
+        if (r < 0.05) r = 0.05;
+      } else if (params.verticalProfile === 'hourglass') {
+        r = params.bottomRadius * Math.max(0.2, 1.0 - Math.min(evalT, 1.0 - evalT) * 1.5);
+      } else if (params.verticalProfile === 'teardrop') {
+        r = params.bottomRadius * Math.sin(evalT * Math.PI) * Math.exp(-evalT * 2);
+      } else if (params.verticalProfile === 'pagoda') {
+        const tierEval = (evalT * 4) % 1.0;
+        r = params.bottomRadius * (1.0 - evalT) * (1.0 + tierEval * 0.5);
+        if (r < 0.05) r = 0.05;
+      } else if (params.verticalProfile === 'custom' && customProfileData && customProfileData.length > 0) {
+        const dataIndex = Math.min(customProfileData.length - 1, Math.floor(evalT * customProfileData.length));
+        r = Math.max(0.01, customProfileData[dataIndex] * params.bottomRadius);
+      }
+
+      for (let j = 0; j <= rSegments; j++) {
+        const ringT = j / rSegments;
+        const spiralY = py + (1.0 / segments) * ringT * params.height;
+        
+        const twistY = spiralY / params.height;
+        let evalTwistY = twistY;
+        if (params.mirrorY && twistY > 0.5) evalTwistY = 1.0 - twistY;
+        
+        let evalAngle = (j / rSegments) * Math.PI * 2;
+        let currentR = r;
+        
+        if (params.crossSection === 'square') currentR *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(evalAngle)), Math.abs(Math.sin(evalAngle)));
+        else if (params.crossSection === 'hexagon') currentR *= Math.cos(Math.PI/6) / Math.cos(Math.abs((evalAngle % (Math.PI/3) + Math.PI/3) % (Math.PI/3) - Math.PI/6));
+        else if (params.crossSection === 'triangle') currentR *= Math.cos(Math.PI/3) / Math.cos(Math.abs((evalAngle % (Math.PI*2/3) + Math.PI*2/3) % (Math.PI*2/3) - Math.PI/3));
+        else if (params.crossSection === 'star') currentR *= 1.0 - (Math.sin(evalAngle * 5) * 0.5 + 0.5) * 0.4;
+        else if (params.crossSection === 'gear') currentR *= 1.0 + (Math.sign(Math.sin(evalAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
+        
+        currentR += params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
+        currentR += params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
+        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
+        
+        if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
+
+        let finalAngle = evalAngle + (evalTwistY * params.twistAngle);
+        
+        const finalX = CX + currentR * SCALE * Math.cos(finalAngle);
+        const finalY = CY + currentR * SCALE * Math.sin(finalAngle);
+        const finalZ = Math.max(0.2, spiralY * SCALE); 
+        
+        const dist = Math.sqrt(Math.pow(finalX - lastX, 2) + Math.pow(finalY - lastY, 2) + Math.pow(finalZ - lastZ, 2));
+        const extrusion = dist * 0.04; 
+
+        if (i===0 && j===0) {
+          gcode += `G1 X${finalX.toFixed(3)} Y${finalY.toFixed(3)} Z${finalZ.toFixed(3)} F3000\n`;
+        } else {
+          gcode += `G1 X${finalX.toFixed(3)} Y${finalY.toFixed(3)} Z${finalZ.toFixed(3)} E${extrusion.toFixed(4)} F1500\n`;
+        }
+        
+        lastX = finalX; lastY = finalY; lastZ = finalZ;
+      }
+    }
+
+    gcode += "G1 Z" + (lastZ + 10.0).toFixed(3) + " F3000 ; lift Z\n";
+    gcode += "G28 X Y ; Home X and Y\n";
+    gcode += "M104 S0 ; Extruder off\n";
+    gcode += "M140 S0 ; Bed off\n";
+    gcode += "M84 ; Disable steppers\n";
+
+    const blob = new Blob([gcode], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = URL.createObjectURL(blob);
+    link.download = `lamp_vase_${Date.now()}.gcode`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="app-container">
       <label htmlFor="hidden-file-input" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: 0 }}>Upload custom shape profile</label>
@@ -450,6 +557,15 @@ export default function App() {
         >
           <Download size={18} aria-hidden="true" />
           Export STL
+        </button>
+        <button 
+          className="export-btn" 
+          onClick={exportGCode}
+          aria-label="Export generated lamp directly as printable G-Code"
+          style={{ borderColor: 'var(--accent-color)' }}
+        >
+          <Printer size={18} aria-hidden="true" />
+          Export G-Code
         </button>
       </div>
 
