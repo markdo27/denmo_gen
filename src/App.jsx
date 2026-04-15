@@ -7,9 +7,17 @@ import { STLExporter } from 'three-stdlib';
 import { Download, Lightbulb } from 'lucide-react';
 import './index.css';
 
+// Smooth pseudo-3D noise function for organic rocky displacements
+function smoothNoise3D(x, y, z) {
+    let n = Math.sin(x)*Math.sin(y)*Math.sin(z);
+    n += Math.sin(x*2.1 + 1.2)*Math.sin(y*2.2 + 0.5)*Math.sin(z*2.3 + 0.8) * 0.5;
+    n += Math.sin(x*4.4 + 2.2)*Math.sin(y*4.5 + 1.5)*Math.sin(z*4.6 + 1.8) * 0.25;
+    return n;
+}
+
 // Procedural Geometry Generator for Lamp
 function generateLampPoints(params, customProfileData = []) {
-  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile, closeTop, closeBottom } = params;
+  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile, closeTop, closeBottom, solidVaseMode } = params;
   
   const outerPoints = [];
 
@@ -42,6 +50,16 @@ function generateLampPoints(params, customProfileData = []) {
     } else if (verticalProfile === 'sphere') {
       r = bottomRadius * Math.sin(evalT * Math.PI);
       if (r < 0.05) r = 0.05; // Prevent normal clipping at pure zero
+    } else if (verticalProfile === 'hourglass') {
+      const pinch = 1.0 - Math.min(evalT, 1.0 - evalT) * 1.5;
+      r = bottomRadius * Math.max(0.2, pinch);
+    } else if (verticalProfile === 'teardrop') {
+      r = bottomRadius * Math.sin(evalT * Math.PI) * Math.exp(-evalT * 2);
+    } else if (verticalProfile === 'pagoda') {
+      const tiers = 4;
+      const tierEval = (evalT * tiers) % 1.0;
+      r = bottomRadius * (1.0 - evalT) * (1.0 + tierEval * 0.5);
+      if (r < 0.05) r = 0.05;
     }
     
     outerPoints.push(new THREE.Vector2(r, y));
@@ -49,41 +67,43 @@ function generateLampPoints(params, customProfileData = []) {
 
   const finalPoints = [];
 
-  // Bottom Cap Outer
-  if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, 0));
+  // Bottom Cap Outer (or solid base)
+  if (solidVaseMode || closeBottom) finalPoints.push(new THREE.Vector2(0.0001, 0));
 
   // Outer Wall
   for (let i = 0; i < outerPoints.length; i++) finalPoints.push(outerPoints[i].clone());
 
-  // Top Cap Outer
-  if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height));
+  // Top Cap Outer (or solid ceiling)
+  if (solidVaseMode || closeTop) finalPoints.push(new THREE.Vector2(0.0001, height));
   
-  // Top Cap Inner (Ceiling)
-  if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height - thickness));
+  if (!solidVaseMode) {
+    // Top Cap Inner (Ceiling)
+    if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height - thickness));
 
-  // Inner Wall
-  for (let i = outerPoints.length - 1; i >= 0; i--) {
-    let p = outerPoints[i];
-    let y = p.y;
-    
-    if (closeTop && y > height - thickness) y = height - thickness;
-    if (closeBottom && y < thickness) y = thickness;
-    
-    let rInner = Math.max(0.0001, p.x - thickness);
-    
-    let nextPoint = new THREE.Vector2(rInner, y);
-    // filter zero-length segments
-    if (finalPoints.length > 0) {
-      let lastPoint = finalPoints[finalPoints.length - 1];
-      if (Math.abs(nextPoint.x - lastPoint.x) < 0.001 && Math.abs(nextPoint.y - lastPoint.y) < 0.001) {
-        continue;
+    // Inner Wall
+    for (let i = outerPoints.length - 1; i >= 0; i--) {
+      let p = outerPoints[i];
+      let y = p.y;
+      
+      if (closeTop && y > height - thickness) y = height - thickness;
+      if (closeBottom && y < thickness) y = thickness;
+      
+      let rInner = Math.max(0.0001, p.x - thickness);
+      
+      let nextPoint = new THREE.Vector2(rInner, y);
+      // filter zero-length segments
+      if (finalPoints.length > 0) {
+        let lastPoint = finalPoints[finalPoints.length - 1];
+        if (Math.abs(nextPoint.x - lastPoint.x) < 0.001 && Math.abs(nextPoint.y - lastPoint.y) < 0.001) {
+          continue;
+        }
       }
+      finalPoints.push(nextPoint);
     }
-    finalPoints.push(nextPoint);
-  }
 
-  // Bottom Cap Inner (Floor)
-  if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, thickness));
+    // Bottom Cap Inner (Floor)
+    if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, thickness));
+  }
 
   // Close Loop
   if (finalPoints.length > 0) {
@@ -100,7 +120,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
     const geo = new THREE.LatheGeometry(points, params.radialSegments, 0, Math.PI * 2);
     
     // We include mirrorX and mirrorZ triggers so they execute even if twist is 0
-    if (params.twistAngle !== 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0 || params.crossSection !== 'circle' || params.mirrorX || params.mirrorZ) {
+    if (params.twistAngle !== 0 || params.radialRippleDepth > 0 || params.verticalRippleDepth > 0 || params.bambooDepth > 0 || params.diamondDepth > 0 || params.noiseDepth > 0 || params.crossSection !== 'circle' || params.mirrorX || params.mirrorZ) {
       const positionAttribute = geo.attributes.position;
       const vertex = new THREE.Vector3();
       for (let i = 0; i < positionAttribute.count; i++) {
@@ -123,6 +143,14 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
            r *= Math.cos(hexAng/2) / Math.cos(wrapped);
         } else if (params.crossSection === 'star') {
            r *= 1.0 - (Math.sin(evalAngle * 5) * 0.5 + 0.5) * 0.4;
+        } else if (params.crossSection === 'triangle') {
+           const triAng = Math.PI * 2 / 3;
+           const wrapped = Math.abs((evalAngle % triAng + triAng) % triAng - triAng/2);
+           r *= Math.cos(triAng/2) / Math.cos(wrapped);
+        } else if (params.crossSection === 'gear') {
+           const teethFreq = 12;
+           const teethDepth = 0.15;
+           r *= 1.0 + (Math.sign(Math.sin(evalAngle * teethFreq)) * 0.5 + 0.5) * teethDepth - (teethDepth/2);
         }
 
         const twistY = vertex.y / params.height;
@@ -132,7 +160,19 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
         const radialRipple = params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
         const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
         
-        r += radialRipple + verticalRipple;
+        // Bamboo Stepping
+        const bamboo = params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        
+        // Diamond Knurling
+        const diamond = params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
+        
+        // Organic Perlin Noise
+        let noiseOffset = 0;
+        if (params.noiseDepth > 0) {
+           noiseOffset = smoothNoise3D(vertex.x * params.noiseScale, vertex.y * params.noiseScale, vertex.z * params.noiseScale) * params.noiseDepth;
+        }
+
+        r += radialRipple + verticalRipple + bamboo + diamond + noiseOffset;
         
         // 2. NOW we add the twist rotation to physically twist the generated cross-section
         const twistRotation = evalTwistY * params.twistAngle;
@@ -151,7 +191,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
     }
     
     return geo;
-  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth, params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ]);
+  }, [points, params.radialSegments, params.twistAngle, params.height, params.radialRipples, params.radialRippleDepth, params.verticalRipples, params.verticalRippleDepth, params.bambooSteps, params.bambooDepth, params.diamondFreq, params.diamondDepth, params.noiseScale, params.noiseDepth, params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ]);
 
   const shaderRef = useRef(null);
 
@@ -311,12 +351,13 @@ export default function App() {
 
   const params = useControls('Lamp Shape', {
     Profile: folder({
-      verticalProfile: { options: ['vase', 'column', 'cone', 'sphere', 'custom'] },
+      verticalProfile: { options: ['vase', 'hourglass', 'teardrop', 'pagoda', 'column', 'cone', 'sphere', 'custom'] },
       customUpload: button(() => {
          const el = document.getElementById('hidden-file-input');
          if(el) el.click();
       }),
-      crossSection: { options: ['circle', 'square', 'hexagon', 'star'] },
+      crossSection: { options: ['circle', 'square', 'hexagon', 'triangle', 'star', 'gear'] },
+      solidVaseMode: false,
       closeTop: false,
       closeBottom: false,
       height: { value: 10, min: 2, max: 30, step: 0.1 },
@@ -334,10 +375,16 @@ export default function App() {
       mirrorY: false,
       mirrorZ: false,
       twistAngle: { value: 0, min: 0, max: Math.PI * 4, step: 0.1, label: 'Twist' },
+      diamondFreq: { value: 0, min: 0, max: 32, step: 1, label: 'Diamond Freq' },
+      diamondDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Diamond Depth' },
       radialRipples: { value: 0, min: 0, max: 32, step: 1, label: 'Rib Freq' },
       radialRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Rib Depth' },
       verticalRipples: { value: 0, min: 0, max: 32, step: 1, label: 'Wave Freq' },
       verticalRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Wave Depth' },
+      bambooSteps: { value: 0, min: 0, max: 20, step: 1, label: 'Bamboo Steps' },
+      bambooDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Bamboo Depth' },
+      noiseScale: { value: 2, min: 0.1, max: 10, step: 0.1, label: 'Noise Scale' },
+      noiseDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Noise Depth' },
     }),
     Shaders: folder({
       innerGlowIntensity: { value: 3.0, min: 0, max: 10, step: 0.1 },
