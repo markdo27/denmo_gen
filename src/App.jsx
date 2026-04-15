@@ -17,7 +17,11 @@ function smoothNoise3D(x, y, z) {
 
 // Procedural Geometry Generator for Lamp
 function generateLampPoints(params, customProfileData = []) {
-  const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile, closeTop, closeBottom, solidVaseMode } = params;
+  const { height, bottomRadius, midRadius, topRadius, thickness, verticalProfile, closeTop, closeBottom, solidVaseMode, layerHeight } = params;
+  
+  // Calculate segments from physical dimensions (height cm -> mm / layerHeight)
+  // Default to 0.2 if undefined to safeguard older states
+  const verticalSegments = Math.round((height * 10) / (layerHeight || 0.2));
   
   const outerPoints = [];
 
@@ -365,10 +369,13 @@ export default function App() {
       midRadius: { value: 3, min: 1, max: 15, step: 0.1 },
       topRadius: { value: 4, min: 1, max: 15, step: 0.1 },
       thickness: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
-    }),
-    Resolution: folder({
-      verticalSegments: { value: 100, min: 5, max: 200, step: 1 },
-      radialSegments: { value: 64, min: 3, max: 200, step: 1 },
+    }, { collapsed: false }),
+    'Print Settings': folder({
+      layerHeight: { value: 0.2, min: 0.08, max: 0.8, step: 0.04, label: 'Layer Height (mm)' },
+      nozzleSize: { value: 0.4, min: 0.2, max: 1.2, step: 0.1, label: 'Nozzle Size (mm)' },
+      bedX: { value: 220, min: 100, max: 500, step: 10, label: 'Bed X Size' },
+      bedY: { value: 220, min: 100, max: 500, step: 10, label: 'Bed Y Size' },
+      radialSegments: { value: 64, min: 12, max: 200, step: 1, label: 'Radial Steps' },
     }),
     Modifiers: folder({
       mirrorX: false,
@@ -418,22 +425,23 @@ export default function App() {
 
   const exportGCode = () => {
     const SCALE = 10; 
-    const CX = 110, CY = 110;
+    const CX = params.bedX / 2.0;
+    const CY = params.bedY / 2.0;
 
     let gcode = "; FLAVOR:Marlin\n";
     gcode += "; Generated natively by ĐÈNMỜ Generator\n";
     gcode += "; VASE MODE SPIRAL\n";
-    gcode += "M104 S200 ; Set Hotend Temp\n";
-    gcode += "M140 S60 ; Set Bed Temp\n";
-    gcode += "M109 S200 ; Wait for Hotend\n";
-    gcode += "M190 S60 ; Wait for Bed\n";
-    gcode += "G28 ; Home\n";
-    gcode += "G90 ; Absolute positioning\n";
-    gcode += "M83 ; Extruder relative\n";
-    gcode += "G1 Z0.2 F3000\n";
+    gcode += `M104 S200 ; Set Hotend Temp\n`;
+    gcode += `M140 S60 ; Set Bed Temp\n`;
+    gcode += `M109 S200 ; Wait for Hotend\n`;
+    gcode += `M190 S60 ; Wait for Bed\n`;
+    gcode += `G28 ; Home\n`;
+    gcode += `G90 ; Absolute positioning\n`;
+    gcode += `M83 ; Extruder relative\n`;
+    gcode += `G1 Z${params.layerHeight.toFixed(3)} F3000\n`;
     
-    let lastX = CX, lastY = CY, lastZ = 0.2;
-    const segments = params.verticalSegments;
+    let lastX = CX, lastY = CY, lastZ = params.layerHeight;
+    const segments = Math.round((params.height * 10) / params.layerHeight);
     const rSegments = params.radialSegments;
     
     for (let i = 0; i <= segments; i++) {
@@ -492,10 +500,15 @@ export default function App() {
         
         const finalX = CX + currentR * SCALE * Math.cos(finalAngle);
         const finalY = CY + currentR * SCALE * Math.sin(finalAngle);
-        const finalZ = Math.max(0.2, spiralY * SCALE); 
+        const finalZ = Math.max(params.layerHeight, spiralY * SCALE); 
         
+        // Volumetric Extrusion Math
         const dist = Math.sqrt(Math.pow(finalX - lastX, 2) + Math.pow(finalY - lastY, 2) + Math.pow(finalZ - lastZ, 2));
-        const extrusion = dist * 0.04; 
+        // Extrusion Vol = line_length * layer_height * extrusion_width (nozzle * 1.1)
+        const extrudeVol = dist * params.layerHeight * (params.nozzleSize * 1.1);
+        // E (length of 1.75mm filament) = Vol / cross-sectional area of filament
+        const filamentArea = Math.PI * Math.pow((1.75 / 2.0), 2);
+        const extrusion = extrudeVol / filamentArea;
 
         if (i===0 && j===0) {
           gcode += `G1 X${finalX.toFixed(3)} Y${finalY.toFixed(3)} Z${finalZ.toFixed(3)} F3000\n`;
