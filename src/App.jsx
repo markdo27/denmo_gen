@@ -165,7 +165,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
         const verticalRipple = params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
         
         // Bamboo Stepping
-        const bamboo = params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        let bambooOffset = params.bambooVerticalFreq > 0 ? Math.sin(evalAngle * params.bambooVerticalFreq) * 1.5 : 0;
+        const bamboo = params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps + bambooOffset)), 10) * params.bambooDepth : 0;
         
         // Diamond Knurling
         const diamond = params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
@@ -365,7 +366,8 @@ function GCodeViewer({ params, customProfileData }) {
         
         currentR += params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
         currentR += params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
-        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        let bambooOffset = params.bambooVerticalFreq > 0 ? Math.sin(evalAngle * params.bambooVerticalFreq) * 1.5 : 0;
+        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps + bambooOffset)), 10) * params.bambooDepth : 0;
         currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
         
         if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
@@ -480,6 +482,7 @@ export default function App() {
       verticalRipples: { value: 0, min: 0, max: 32, step: 1, label: 'Wave Freq' },
       verticalRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Wave Depth' },
       bambooSteps: { value: 0, min: 0, max: 20, step: 1, label: 'Bamboo Steps' },
+      bambooVerticalFreq: { value: 0, min: 0, max: 64, step: 1, label: 'Bamboo Vert' },
       bambooDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Bamboo Depth' },
       noiseScale: { value: 2, min: 0.1, max: 10, step: 0.1, label: 'Noise Scale' },
       noiseDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Noise Depth' },
@@ -584,7 +587,8 @@ export default function App() {
         
         currentR += params.radialRippleDepth > 0 ? Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth : 0;
         currentR += params.verticalRippleDepth > 0 ? Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth : 0;
-        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
+        let exportBambooOffset = params.bambooVerticalFreq > 0 ? Math.sin(evalAngle * params.bambooVerticalFreq) * 1.5 : 0;
+        currentR += params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps + exportBambooOffset)), 10) * params.bambooDepth : 0;
         currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
         
         if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
