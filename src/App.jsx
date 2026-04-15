@@ -371,12 +371,15 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <label htmlFor="hidden-file-input" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: 0 }}>Upload custom shape profile</label>
       <input 
         type="file" 
         id="hidden-file-input" 
         style={{ display: 'none' }} 
         accept="image/*" 
         onChange={handleImageUpload} 
+        aria-hidden="true"
+        tabIndex="-1"
       />
       <div className="title-container">
         <h1 className="app-title">ĐÈNMỜ</h1>
@@ -387,13 +390,18 @@ export default function App() {
         <button 
           className="export-btn"
           onClick={() => setIsGlowing(!isGlowing)}
-          style={{ background: isGlowing ? 'rgba(245, 158, 11, 0.4)' : '' }}
+          aria-pressed={isGlowing}
+          aria-label="Toggle inner glow simulation"
         >
-          <Lightbulb size={18} color={isGlowing ? '#fbbf24' : '#ffffff'} />
+          <Lightbulb size={18} aria-hidden="true" color={isGlowing ? '#ea580c' : 'currentColor'} />
           {isGlowing ? 'Glow Active' : 'Simulate Glow'}
         </button>
-        <button className="export-btn" onClick={exportSTL}>
-          <Download size={18} />
+        <button 
+          className="export-btn" 
+          onClick={exportSTL}
+          aria-label="Export generated lamp shape as STL file"
+        >
+          <Download size={18} aria-hidden="true" />
           Export STL
         </button>
       </div>
@@ -412,7 +420,13 @@ export default function App() {
         }
       }} />
 
-      <Canvas shadows camera={{ position: [0, 15, 30], fov: 45 }}>
+      <Canvas 
+        shadows 
+        camera={{ position: [0, 15, 30], fov: 45 }}
+        dpr={[1, 2]}
+        aria-label="Interactive 3D Lamp Generator Viewport"
+        role="img"
+      >
         <color attach="background" args={['#0a0a0a']} />
         
         {/* Dynamic environment map toggle */}
