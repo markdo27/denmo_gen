@@ -369,14 +369,14 @@ export default function App() {
       midRadius: { value: 3, min: 1, max: 15, step: 0.1 },
       topRadius: { value: 4, min: 1, max: 15, step: 0.1 },
       thickness: { value: 0.5, min: 0.1, max: 2, step: 0.05 },
-    }, { collapsed: false }),
+    }, { collapsed: true }),
     'Print Settings': folder({
       layerHeight: { value: 0.2, min: 0.08, max: 0.8, step: 0.04, label: 'Layer Height (mm)' },
       nozzleSize: { value: 0.4, min: 0.2, max: 1.2, step: 0.1, label: 'Nozzle Size (mm)' },
       bedX: { value: 220, min: 100, max: 500, step: 10, label: 'Bed X Size' },
       bedY: { value: 220, min: 100, max: 500, step: 10, label: 'Bed Y Size' },
       radialSegments: { value: 64, min: 12, max: 200, step: 1, label: 'Radial Steps' },
-    }),
+    }, { collapsed: true }),
     Modifiers: folder({
       mirrorX: false,
       mirrorY: false,
@@ -397,7 +397,7 @@ export default function App() {
       innerGlowIntensity: { value: 3.0, min: 0, max: 10, step: 0.1 },
       surfaceNoise: { value: 0.5, min: 0, max: 2, step: 0.05 },
       iridescence: { value: 0.5, min: 0, max: 1, step: 0.05 },
-    })
+    }, { collapsed: true })
   });
 
   const styleParams = useControls('Appearance', {
@@ -406,7 +406,7 @@ export default function App() {
     flatShading: false,
     environment: { options: ['studio', 'city', 'warehouse', 'sunset', 'dawn', 'night'] },
     lightIntensity: { value: 1, min: 0, max: 5, step: 0.1 }
-  });
+  }, { collapsed: true });
 
   const exportSTL = () => {
     if (meshRef.current) {
@@ -423,7 +423,9 @@ export default function App() {
     }
   };
 
-  const exportGCode = () => {
+  const [viewMode, setViewMode] = useState('3D');
+
+  const generateGCodeString = () => {
     const SCALE = 10; 
     const CX = params.bedX / 2.0;
     const CY = params.bedY / 2.0;
@@ -526,7 +528,12 @@ export default function App() {
     gcode += "M140 S0 ; Bed off\n";
     gcode += "M84 ; Disable steppers\n";
 
-    const blob = new Blob([gcode], { type: 'text/plain' });
+    return gcode;
+  };
+
+  const exportGCode = () => {
+    const textCode = generateGCodeString();
+    const blob = new Blob([textCode], { type: 'text/plain' });
     const link = document.createElement('a');
     link.style.display = 'none';
     link.href = URL.createObjectURL(blob);
@@ -535,6 +542,11 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
   };
+  
+  const currentGCode = useMemo(() => {
+    if (viewMode === 'G-CODE') return generateGCodeString();
+    return "";
+  }, [viewMode, params, customProfileData]);
 
   return (
     <div className="app-container">
@@ -554,6 +566,14 @@ export default function App() {
       </div>
       
       <div className="ui-container">
+        <button 
+          className="export-btn view-toggle-btn"
+          onClick={() => setViewMode(viewMode === '3D' ? 'G-CODE' : '3D')}
+          aria-label="Toggle View Mode"
+        >
+          <div className="btn-text">VIEW PORT: [ {viewMode} ]</div>
+          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
+        </button>
         <button 
           className="export-btn"
           onClick={() => setIsGlowing(!isGlowing)}
@@ -613,52 +633,58 @@ export default function App() {
         </div>
       </div>
 
-      <Canvas 
-        shadows 
-        camera={{ position: [0, 15, 30], fov: 45 }}
-        dpr={[1, 2]}
-        aria-label="Interactive 3D Lamp Generator Viewport"
-        role="img"
-      >
-        <color attach="background" args={['#0a0a0a']} />
-        
-        {/* Dynamic environment map toggle */}
-        <Environment preset={isGlowing ? 'park' : 'city'} background={false} />
+      {viewMode === '3D' ? (
+        <Canvas 
+          shadows 
+          camera={{ position: [0, 15, 30], fov: 45 }}
+          dpr={[1, 2]}
+          aria-label="Interactive 3D Lamp Generator Viewport"
+          role="img"
+        >
+          <color attach="background" args={['#0a0a0a']} />
+          
+          {/* Dynamic environment map toggle */}
+          <Environment preset={isGlowing ? 'park' : 'city'} background={false} />
 
-        <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
-        <directionalLight 
-          position={[10, 20, 10]} 
-          intensity={isGlowing ? styleParams.lightIntensity * 0.5 : styleParams.lightIntensity * 1.5} 
-          castShadow 
-          shadow-mapSize={[1024, 1024]}
-        />
-        
-        <Center>
-          <Lamp 
-            params={params} 
-            customProfileData={customProfileData}
-            materialProps={{ color: styleParams.color }} 
-            meshRef={meshRef}
-            isGlowing={isGlowing}
+          <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
+          <directionalLight 
+            position={[10, 20, 10]} 
+            intensity={isGlowing ? styleParams.lightIntensity * 0.5 : styleParams.lightIntensity * 1.5} 
+            castShadow 
+            shadow-mapSize={[1024, 1024]}
           />
-          {/* Add a light source inside the lamp if it's open top/glass */}
-          <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
-        </Center>
-        
-        <ContactShadows position={[0, -params.height / 2 - 0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
-        
-        <Grid 
-          infiniteGrid 
-          fadeDistance={60} 
-          sectionColor="#444444" 
-          cellColor="#222222" 
-          cellSize={1} 
-          sectionSize={5} 
-          position={[0, -params.height / 2 - 0.02, 0]} 
-        />
-        
-        <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
-      </Canvas>
+          
+          <Center>
+            <Lamp 
+              params={params} 
+              customProfileData={customProfileData}
+              materialProps={{ color: styleParams.color }} 
+              meshRef={meshRef}
+              isGlowing={isGlowing}
+            />
+            {/* Add a light source inside the lamp if it's open top/glass */}
+            <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
+          </Center>
+          
+          <ContactShadows position={[0, -params.height / 2 - 0.01, 0]} opacity={0.8} scale={50} blur={2.5} far={10} color="#000000" />
+          
+          <Grid 
+            infiniteGrid 
+            fadeDistance={60} 
+            sectionColor="#444444" 
+            cellColor="#222222" 
+            cellSize={1} 
+            sectionSize={5} 
+            position={[0, -params.height / 2 - 0.02, 0]} 
+          />
+          
+          <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 2 + 0.1} autoRotate={false} />
+        </Canvas>
+      ) : (
+        <div className="gcode-viewer-container">
+          <pre className="gcode-viewer"><code>{currentGCode}</code></pre>
+        </div>
+      )}
     </div>
   );
 }
