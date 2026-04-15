@@ -8,7 +8,7 @@ import { Download, Lightbulb } from 'lucide-react';
 import './index.css';
 
 // Procedural Geometry Generator for Lamp
-function generateLampPoints(params) {
+function generateLampPoints(params, customProfileData = []) {
   const { height, bottomRadius, midRadius, topRadius, thickness, verticalSegments, verticalProfile, closeTop, closeBottom } = params;
   
   const outerPoints = [];
@@ -23,6 +23,13 @@ function generateLampPoints(params) {
       const p1 = midRadius;
       const p2 = topRadius;
       r = Math.pow(1 - t, 2) * p0 + 2 * (1 - t) * t * p1 + Math.pow(t, 2) * p2;
+    } else if (verticalProfile === 'custom') {
+      if (!customProfileData || customProfileData.length === 0) {
+        r = bottomRadius; // fallback
+      } else {
+        const dataIndex = Math.min(customProfileData.length - 1, Math.floor(t * customProfileData.length));
+        r = Math.max(0.01, customProfileData[dataIndex] * bottomRadius);
+      }
     } else if (verticalProfile === 'column') {
       r = bottomRadius;
     } else if (verticalProfile === 'cone') {
@@ -81,8 +88,8 @@ function generateLampPoints(params) {
   return finalPoints;
 }
 
-function Lamp({ params, materialProps, meshRef, isGlowing }) {
-  const points = useMemo(() => generateLampPoints(params), [params]);
+function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) {
+  const points = useMemo(() => generateLampPoints(params, customProfileData), [params, customProfileData]);
   
   const geometry = useMemo(() => {
     const geo = new THREE.LatheGeometry(points, params.radialSegments, 0, Math.PI * 2);
@@ -219,7 +226,14 @@ function Lamp({ params, materialProps, meshRef, isGlowing }) {
   }, []);
 
   return (
-    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
+    <mesh 
+      ref={meshRef} 
+      geometry={geometry} 
+      castShadow 
+      receiveShadow
+      scale={[params.mirrorX ? -1 : 1, params.mirrorY ? -1 : 1, params.mirrorZ ? -1 : 1]}
+      position={[0, params.mirrorY ? params.height : 0, 0]}
+    >
       <meshPhysicalMaterial 
         {...materialProps}
         roughness={params.material === 'glass' ? 0.1 : params.material === 'metallic' ? 0.2 : 0.8}
@@ -235,12 +249,57 @@ function Lamp({ params, materialProps, meshRef, isGlowing }) {
 }
 
 export default function App() {
-  const meshRef = useRef();
   const [isGlowing, setIsGlowing] = useState(false);
+  const meshRef = useRef();
+  const [customProfileData, setCustomProfileData] = useState([]);
+  
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const img = new Image();
+    img.onload = () => {
+      const targetHeight = 500; 
+      const targetWidth = Math.floor(img.width * (targetHeight / img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+      const data = ctx.getImageData(0, 0, targetWidth, targetHeight).data;
+      
+      const profile = [];
+      const centerX = targetWidth / 2;
+      
+      // Determine background color by top-left pixel
+      const bgR = data[0], bgG = data[1], bgB = data[2], bgA = data[3];
+
+      for (let y = 0; y < targetHeight; y++) {
+        let edgeX = centerX;
+        for (let x = targetWidth - 1; x >= centerX; x--) {
+          const i = (y * targetWidth + x) * 4;
+          const diff = Math.abs(data[i] - bgR) + Math.abs(data[i+1] - bgG) + Math.abs(data[i+2] - bgB) + Math.abs(data[i+3] - bgA);
+          if (diff > 50) {
+            edgeX = x;
+            break;
+          }
+        }
+        const radius = (edgeX - centerX) / centerX;
+        profile.push(radius);
+      }
+      
+      setCustomProfileData(profile.reverse());
+    };
+    img.src = URL.createObjectURL(file);
+  };
 
   const params = useControls('Lamp Shape', {
     Profile: folder({
-      verticalProfile: { options: ['vase', 'column', 'cone', 'sphere'] },
+      verticalProfile: { options: ['vase', 'column', 'cone', 'sphere', 'custom'] },
+      customUpload: button(() => {
+         const el = document.getElementById('hidden-file-input');
+         if(el) el.click();
+      }),
       crossSection: { options: ['circle', 'square', 'hexagon', 'star'] },
       closeTop: false,
       closeBottom: false,
@@ -255,6 +314,9 @@ export default function App() {
       radialSegments: { value: 64, min: 3, max: 200, step: 1 },
     }),
     Modifiers: folder({
+      mirrorX: false,
+      mirrorY: false,
+      mirrorZ: false,
       twistAngle: { value: 0, min: 0, max: Math.PI * 4, step: 0.1, label: 'Twist' },
       radialRipples: { value: 0, min: 0, max: 32, step: 1, label: 'Rib Freq' },
       radialRippleDepth: { value: 0, min: 0, max: 3, step: 0.05, label: 'Rib Depth' },
@@ -292,65 +354,67 @@ export default function App() {
   };
 
   return (
-    <>
-      <div className="background-grid" />
-      
-      <div className="title-container">
-        <h1 className="app-title">ĐÈNMỜ</h1>
-        <div className="app-subtitle">Generator</div>
-      </div>
-      
-      <div className="ui-container">
-        <button className="export-btn" onClick={() => setIsGlowing(!isGlowing)} style={{ background: isGlowing ? 'rgba(245, 158, 11, 0.4)' : '' }}>
-          <Lightbulb size={16} color={isGlowing ? '#fbbf24' : '#ffffff'} />
-          {isGlowing ? 'Turn Off Glow' : 'Simulate Glow'}
-        </button>
-        <button className="export-btn" onClick={exportSTL}>
-          <Download size={16} />
-          Export STL
-        </button>
+    <div className="app-container">
+      <input 
+        type="file" 
+        id="hidden-file-input" 
+        style={{ display: 'none' }} 
+        accept="image/*" 
+        onChange={handleImageUpload} 
+      />
+      <div className="ui-overlay">
+        <h1 className="logo-text">ĐÈNMỜ Generator</h1>
+        <div className="controls-panel">
+          <button 
+            className={`action-btn ${isGlowing ? 'active-glow' : ''}`}
+            onClick={() => setIsGlowing(!isGlowing)}
+          >
+            <Lightbulb size={18} />
+            {isGlowing ? 'Glow Active' : 'Simulate Glow'}
+          </button>
+          <button className="action-btn" onClick={exportSTL}>
+            <Download size={18} />
+            Export STL
+          </button>
+        </div>
       </div>
 
       <Leva theme={{
         colors: {
-          elevation1: 'rgba(20, 25, 35, 0.7)', 
-          elevation2: 'rgba(255, 255, 255, 0.05)', 
-          elevation3: 'rgba(255, 255, 255, 0.1)', 
-          accent1: '#f59e0b',    
-          accent2: '#fbbf24',    
-          accent3: '#d97706',    
-          highlight1: '#f8fafc', 
-          highlight2: '#94a3b8', 
-          highlight3: '#ffffff', 
-          vivid1: '#10b981',     
-        },
-        space: {
-          rowGap: '4px',
-        },
-        radii: {
-          xs: '4px',
-          sm: '6px',
-          lg: '10px',
-        },
-        borderWidths: {
-          hover: '1px',
-          active: '1px',
-        },
-        fontWeights: {
-          label: '500',
-          folder: '600',
+          elevation1: '#1a1a1a',
+          elevation2: '#2a2a2a',
+          elevation3: '#3a3a3a',
+          accent1: '#ff6200',
+          accent2: '#ff8800',
+          accent3: '#ffaa00',
+          highlight1: '#ffffff',
+          highlight2: '#aaaaaa',
+          highlight3: '#888888',
         }
       }} />
 
-      <Canvas camera={{ position: [0, 15, 25], fov: 45 }} shadows gl={{ alpha: true }}>
-        <ambientLight intensity={styleParams.lightIntensity * 0.5} />
-        <spotLight position={[10, 20, 10]} intensity={styleParams.lightIntensity * 2} penumbra={0.5} castShadow shadow-bias={-0.0001} />
-        <pointLight position={[-10, -10, -10]} intensity={styleParams.lightIntensity * 0.5} color="#f59e0b" />
+      <Canvas shadows camera={{ position: [0, 15, 30], fov: 45 }}>
+        <color attach="background" args={['#0a0a0a']} />
         
-        <Environment preset={isGlowing ? 'park' : styleParams.environment} />
+        {/* Dynamic environment map toggle */}
+        <Environment preset={isGlowing ? 'park' : 'city'} background={false} />
+
+        <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
+        <directionalLight 
+          position={[10, 20, 10]} 
+          intensity={isGlowing ? styleParams.lightIntensity * 0.5 : styleParams.lightIntensity * 1.5} 
+          castShadow 
+          shadow-mapSize={[1024, 1024]}
+        />
         
-        <Center y={0}>
-          <Lamp params={params} materialProps={{ color: styleParams.color }} meshRef={meshRef} isGlowing={isGlowing} />
+        <Center>
+          <Lamp 
+            params={params} 
+            customProfileData={customProfileData}
+            materialProps={{ color: styleParams.color }} 
+            meshRef={meshRef}
+            isGlowing={isGlowing}
+          />
           {/* Add a light source inside the lamp if it's open top/glass */}
           <pointLight position={[0, params.height / 2, 0]} intensity={isGlowing ? 4.0 : 2.0} color={isGlowing ? "#fbbf24" : styleParams.color} distance={params.height * 2.5} />
         </Center>
