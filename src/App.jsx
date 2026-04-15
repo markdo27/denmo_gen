@@ -170,7 +170,13 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
         const bamboo = bambooHoriz + bambooVert;
         
         // Diamond Knurling
-        const diamond = params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
+        if (params.diamondDepth > 0) {
+            const A = evalAngle * params.diamondFreq;
+            const B = evalTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
+            const groove1 = Math.abs(Math.sin(A + B));
+            const groove2 = Math.abs(Math.sin(A - B));
+            r += (1.0 - Math.max(groove1, groove2)) * params.diamondDepth;
+        }
         
         // Organic Perlin Noise
         let noiseOffset = 0;
@@ -178,7 +184,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing }) 
            noiseOffset = smoothNoise3D(vertex.x * params.noiseScale, vertex.y * params.noiseScale, vertex.z * params.noiseScale) * params.noiseDepth;
         }
 
-        r += radialRipple + verticalRipple + bamboo + diamond + noiseOffset;
+        r += radialRipple + verticalRipple + bamboo + noiseOffset;
         
         // 2. NOW we add the twist rotation to physically twist the generated cross-section
         const twistRotation = evalTwistY * params.twistAngle;
@@ -370,8 +376,13 @@ function GCodeViewer({ params, customProfileData }) {
         const bambooHoriz = params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
         const bambooVert = params.bambooVerticalFreq > 0 ? Math.pow(Math.abs(Math.cos(evalAngle * params.bambooVerticalFreq / 2.0)), 10) * params.bambooDepth : 0;
         currentR += bambooHoriz + bambooVert;
-        currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
-        
+        if (params.diamondDepth > 0) {
+            const A = evalAngle * params.diamondFreq;
+            const B = evalTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
+            const groove1 = Math.abs(Math.sin(A + B));
+            const groove2 = Math.abs(Math.sin(A - B));
+            currentR += (1.0 - Math.max(groove1, groove2)) * params.diamondDepth;
+        }
         if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
 
         let finalAngle = evalAngle + (evalTwistY * params.twistAngle);
@@ -592,7 +603,13 @@ export default function App() {
         const exportBambooHoriz = params.bambooDepth > 0 ? Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth : 0;
         const exportBambooVert = params.bambooVerticalFreq > 0 ? Math.pow(Math.abs(Math.cos(evalAngle * params.bambooVerticalFreq / 2.0)), 10) * params.bambooDepth : 0;
         currentR += exportBambooHoriz + exportBambooVert;
-        currentR += params.diamondDepth > 0 ? Math.sin(evalAngle * params.diamondFreq + evalTwistY * Math.PI * params.diamondFreq) * Math.sin(evalAngle * params.diamondFreq - evalTwistY * Math.PI * params.diamondFreq) * params.diamondDepth : 0;
+        if (params.diamondDepth > 0) {
+            const A = evalAngle * params.diamondFreq;
+            const B = evalTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
+            const groove1 = Math.abs(Math.sin(A + B));
+            const groove2 = Math.abs(Math.sin(A - B));
+            currentR += (1.0 - Math.max(groove1, groove2)) * params.diamondDepth;
+        }
         
         if (params.noiseDepth > 0) currentR += smoothNoise3D(currentR * Math.cos(evalAngle) * params.noiseScale, spiralY * params.noiseScale, currentR * Math.sin(evalAngle) * params.noiseScale) * params.noiseDepth;
 
