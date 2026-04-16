@@ -55,40 +55,70 @@ export function getProfileRadius(evalT, params, customProfileData) {
 }
 
 // ---------------------------------------------------------------------------
-// Radius modifiers — applies all surface-perturbation algorithms in order
+// Radius modifiers — applies all surface-perturbation algorithms in order.
 //
-// evalAngle   : raw angle in [0, 2π) from the caller
-// evalTwistY  : normalised height [0, 1] from the caller
-// spiralY     : physical height in cm (used as 3rd noise axis)
-// baseR       : profile radius from getProfileRadius (or sqrt of vertex xz²)
-// params      : full controls params object (includes mirrorX/Y/Z flags)
-// rdMap       : Float32Array (RD_RES × RD_RES) or null
-// voronoiMap  : Float32Array (VOI_RES × VOI_RES) or null
+// Mirror symmetry is implemented using TWO parallel strategies:
+//
+//   1. ABSOLUTE COORDINATE SAMPLING (Cartesian / noise):
+//      Evaluate the 3-D noise field at (Math.abs(x), y, z).
+//      Because |x| == |-x|, both the positive and negative X hemispheres
+//      receive the exact same noise value → perfect bilateral symmetry
+//      without any seam, no duplicated geometry.
+//
+//   2. POLAR BILATERAL FOLD (angle-domain modifiers):
+//      The lateral mirror of angle θ is π − θ (across the YZ plane).
+//      We enforce f(θ) === f(π − θ) by mapping every angle to its
+//      canonical representative:
+//         front (θ ∈ [0, π])  → fold to [0, π/2]  via  min(θ, π − θ)
+//         back  (θ ∈ [π, 2π]) → fold to [π, 3π/2] via  min(θ, 3π − θ)
+//      This is mathematically equivalent to "apply the function at both
+//      θ and its mirror angle, then take the canonical sample" —
+//      it avoids the destructive cancellation that would occur for
+//      odd-frequency sin/cos sums when evaluating at θ and θ + π.
+//
+//   3. SINGLE CONTINUOUS TOOLPATH:
+//      No geometry is duplicated and no object is split. The output is
+//      the same single-loop array of spiral points as always; only the
+//      scalar radius perturbation is made bilaterally symmetric.
+//
+// evalAngle   : raw angle in [0, 2π) from the caller (atan2 or ring loop)
+// evalTwistY  : raw normalised height [0, 1] from the caller
+// spiralY     : physical height in cm (3rd axis for noise)
+// baseR       : baseline profile radius
+// params      : full controls object (mirrorX/Y/Z flags live here)
+// rdMap       : Float32Array [RD_RES × RD_RES] or null
+// voronoiMap  : Float32Array [VOI_RES × VOI_RES] or null
 // ---------------------------------------------------------------------------
 export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, params, rdMap, voronoiMap) {
   let r = baseR;
 
-  // ── Mirror folding ────────────────────────────────────────────────────
-  // mirrorX — side-by-side bilateral symmetry:
-  //   Fold the full 360° circle into two identical 180° halves so that
-  //   the left half is an exact reflection of the right half.
-  //   Achieved by mapping the angle into [0, π] via |sin| folding:
-  //   any angle θ and its mirror (2π − θ) produce the same evalAngle.
+  // ── Strategy 2: Polar bilateral fold ──────────────────────────────────
+  //
+  // mirrorX — lateral bilateral (left = right across the YZ plane)
+  //   The mirror of θ is π − θ.  Fold both halves to their canonical half.
   let sampleAngle = evalAngle;
   if (params.mirrorX) {
-    // Normalise to [0, 2π)
-    const a = ((evalAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    // Fold: right half [0,π] kept as-is; left half [π,2π] reflected back
-    sampleAngle = a <= Math.PI ? a : Math.PI * 2 - a;
+    const TWO_PI = Math.PI * 2;
+    const a = ((evalAngle % TWO_PI) + TWO_PI) % TWO_PI;  // normalise to [0, 2π)
+    if (a <= Math.PI) {
+      // Front hemisphere [0, π] → fold to [0, π/2]
+      sampleAngle = a <= Math.PI * 0.5 ? a : Math.PI - a;
+    } else {
+      // Back hemisphere (π, 2π) → shift to [0, π), fold, shift back
+      const b = a - Math.PI;
+      sampleAngle = (b <= Math.PI * 0.5 ? b : Math.PI - b) + Math.PI;
+    }
   }
-  // mirrorZ — fold front/back (only pattern, not geometry)
+
+  // mirrorZ — fore/aft bilateral (front = back across the XY plane)
+  //   The mirror of θ is 2π − θ.  Fold to [0, π].
   if (params.mirrorZ) {
-    const a = ((sampleAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    sampleAngle = a <= Math.PI * 0.5 || a >= Math.PI * 1.5
-      ? sampleAngle
-      : Math.PI - sampleAngle;
+    const TWO_PI = Math.PI * 2;
+    const a = ((sampleAngle % TWO_PI) + TWO_PI) % TWO_PI;
+    sampleAngle = a <= Math.PI ? a : TWO_PI - a;
   }
-  // mirrorY — fold top/bottom (vertical direction)
+
+  // mirrorY — vertical bilateral (top = bottom)
   const sampleTwistY = (params.mirrorY && evalTwistY > 0.5) ? 1.0 - evalTwistY : evalTwistY;
 
   // ── Cross-section shaping ──────────────────────────────────────────────
@@ -112,14 +142,15 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
     r *= 1.0 + (Math.sign(Math.sin(sampleAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
   }
 
-  // ── Radial & vertical ripples ──────────────────────────────────────────
+  // ── Radial ripples (polar fold) ────────────────────────────────────────
   if (params.radialRippleDepth > 0)
     r += Math.sin(sampleAngle * params.radialRipples) * params.radialRippleDepth;
 
+  // ── Vertical ripples (height fold) ────────────────────────────────────
   if (params.verticalRippleDepth > 0)
     r += Math.sin(sampleTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth;
 
-  // ── Bamboo stepping ───────────────────────────────────────────────────
+  // ── Bamboo stepping (polar + height fold) ─────────────────────────────
   if (params.bambooDepth > 0) {
     const bambooHoriz = Math.pow(Math.abs(Math.cos(sampleTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth;
     const bambooVert  = params.bambooVerticalFreq > 0
@@ -128,29 +159,37 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
     r += bambooHoriz + bambooVert;
   }
 
-  // ── Diamond knurling ──────────────────────────────────────────────────
+  // ── Diamond knurling (polar + height fold) ────────────────────────────
   if (params.diamondDepth > 0) {
     const A = sampleAngle * params.diamondFreq;
     const B = sampleTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
     r += (1.0 - Math.max(Math.abs(Math.sin(A + B)), Math.abs(Math.sin(A - B)))) * params.diamondDepth;
   }
 
-  // ── Perlin FBM noise ─────────────────────────────────────────────────
+  // ── Strategy 1: Absolute-coordinate Cartesian sampling for Perlin FBM ─
+  //
+  // Evaluate the noise field at (|x|, y, z) instead of (x, y, z).
+  // Since fbm3(|x|, y, z) == fbm3(|-x|, y, z) by definition of abs,
+  // both hemispheres receive identical noise — no seam, no fold artefact.
   if (params.noiseDepth > 0) {
-    const nx = r * Math.cos(sampleAngle) * params.noiseScale;
-    const ny = spiralY * params.noiseScale;
-    const nz = r * Math.sin(sampleAngle) * params.noiseScale;
+    // Compute the actual 3-D position of this point on the spiral
+    let   nx = r * Math.cos(evalAngle) * params.noiseScale;   // raw X coord
+    const ny =     spiralY             * params.noiseScale;   // height axis
+    const nz = r * Math.sin(evalAngle) * params.noiseScale;   // raw Z coord
+
+    if (params.mirrorX) nx = Math.abs(nx);   // ← absolute-X sampling
+
     r += fbm3(nx, ny, nz) * params.noiseDepth;
   }
 
-  // ── Reaction-Diffusion map ────────────────────────────────────────────
+  // ── Reaction-Diffusion map (polar fold UV) ────────────────────────────
   if (params.rdDepth > 0 && rdMap) {
     const rdU = (Math.round((sampleAngle / (Math.PI * 2)) * RD_RES) + RD_RES) % RD_RES;
     const rdV = Math.min(RD_RES - 1, Math.round(sampleTwistY * (RD_RES - 1)));
     r += rdMap[rdV * RD_RES + rdU] * params.rdDepth;
   }
 
-  // ── Voronoi distance field ────────────────────────────────────────────
+  // ── Voronoi distance field (polar fold UV) ────────────────────────────
   if (params.voronoiDepth > 0 && voronoiMap) {
     const vU = (Math.round((sampleAngle / (Math.PI * 2)) * VOI_RES) + VOI_RES) % VOI_RES;
     const vV = Math.min(VOI_RES - 1, Math.round(sampleTwistY * (VOI_RES - 1)));
@@ -159,4 +198,3 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
 
   return r;
 }
-
