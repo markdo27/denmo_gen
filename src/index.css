@@ -287,3 +287,41 @@ body {
   color: var(--bg-color);
   animation: rd-pulse 0.8s ease-in-out infinite;
 }
+
+/* Mirror axis button group */
+.mirror-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mirror-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mirror-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mirror-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.mirror-btn .btn-text {
+  flex: 1;
+  justify-content: center;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+.mirror-btn .btn-icon-wrapper {
+  font-size: 14px;
+  padding: 8px 8px;
+}
