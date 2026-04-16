@@ -57,82 +57,106 @@ export function getProfileRadius(evalT, params, customProfileData) {
 // ---------------------------------------------------------------------------
 // Radius modifiers — applies all surface-perturbation algorithms in order
 //
-// evalAngle   : angle in [0, 2π) (may be pre-mirrored by caller)
-// evalTwistY  : normalised height [0, 1] (may be pre-mirrored by caller)
+// evalAngle   : raw angle in [0, 2π) from the caller
+// evalTwistY  : normalised height [0, 1] from the caller
 // spiralY     : physical height in cm (used as 3rd noise axis)
 // baseR       : profile radius from getProfileRadius (or sqrt of vertex xz²)
-// params      : full Leva params object
+// params      : full controls params object (includes mirrorX/Y/Z flags)
 // rdMap       : Float32Array (RD_RES × RD_RES) or null
 // voronoiMap  : Float32Array (VOI_RES × VOI_RES) or null
 // ---------------------------------------------------------------------------
 export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, params, rdMap, voronoiMap) {
   let r = baseR;
 
+  // ── Mirror folding ────────────────────────────────────────────────────
+  // mirrorX — side-by-side bilateral symmetry:
+  //   Fold the full 360° circle into two identical 180° halves so that
+  //   the left half is an exact reflection of the right half.
+  //   Achieved by mapping the angle into [0, π] via |sin| folding:
+  //   any angle θ and its mirror (2π − θ) produce the same evalAngle.
+  let sampleAngle = evalAngle;
+  if (params.mirrorX) {
+    // Normalise to [0, 2π)
+    const a = ((evalAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    // Fold: right half [0,π] kept as-is; left half [π,2π] reflected back
+    sampleAngle = a <= Math.PI ? a : Math.PI * 2 - a;
+  }
+  // mirrorZ — fold front/back (only pattern, not geometry)
+  if (params.mirrorZ) {
+    const a = ((sampleAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    sampleAngle = a <= Math.PI * 0.5 || a >= Math.PI * 1.5
+      ? sampleAngle
+      : Math.PI - sampleAngle;
+  }
+  // mirrorY — fold top/bottom (vertical direction)
+  const sampleTwistY = (params.mirrorY && evalTwistY > 0.5) ? 1.0 - evalTwistY : evalTwistY;
+
   // ── Cross-section shaping ──────────────────────────────────────────────
   if (params.crossSection === 'square') {
-    r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(evalAngle)), Math.abs(Math.sin(evalAngle)));
+    r *= Math.cos(Math.PI / 4) / Math.max(Math.abs(Math.cos(sampleAngle)), Math.abs(Math.sin(sampleAngle)));
 
   } else if (params.crossSection === 'hexagon') {
     const hexAng = Math.PI / 3;
-    const wrapped = Math.abs((evalAngle % hexAng + hexAng) % hexAng - hexAng / 2);
+    const wrapped = Math.abs((sampleAngle % hexAng + hexAng) % hexAng - hexAng / 2);
     r *= Math.cos(hexAng / 2) / Math.cos(wrapped);
 
   } else if (params.crossSection === 'triangle') {
     const triAng = Math.PI * 2 / 3;
-    const wrapped = Math.abs((evalAngle % triAng + triAng) % triAng - triAng / 2);
+    const wrapped = Math.abs((sampleAngle % triAng + triAng) % triAng - triAng / 2);
     r *= Math.cos(triAng / 2) / Math.cos(wrapped);
 
   } else if (params.crossSection === 'star') {
-    r *= 1.0 - (Math.sin(evalAngle * 5) * 0.5 + 0.5) * 0.4;
+    r *= 1.0 - (Math.sin(sampleAngle * 5) * 0.5 + 0.5) * 0.4;
 
   } else if (params.crossSection === 'gear') {
-    r *= 1.0 + (Math.sign(Math.sin(evalAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
+    r *= 1.0 + (Math.sign(Math.sin(sampleAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
   }
 
   // ── Radial & vertical ripples ──────────────────────────────────────────
   if (params.radialRippleDepth > 0)
-    r += Math.sin(evalAngle * params.radialRipples) * params.radialRippleDepth;
+    r += Math.sin(sampleAngle * params.radialRipples) * params.radialRippleDepth;
 
   if (params.verticalRippleDepth > 0)
-    r += Math.sin(evalTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth;
+    r += Math.sin(sampleTwistY * Math.PI * params.verticalRipples) * params.verticalRippleDepth;
 
   // ── Bamboo stepping ───────────────────────────────────────────────────
   if (params.bambooDepth > 0) {
-    const bambooHoriz = Math.pow(Math.abs(Math.cos(evalTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth;
+    const bambooHoriz = Math.pow(Math.abs(Math.cos(sampleTwistY * Math.PI * params.bambooSteps)), 10) * params.bambooDepth;
     const bambooVert  = params.bambooVerticalFreq > 0
-      ? Math.pow(Math.abs(Math.cos(evalAngle * params.bambooVerticalFreq / 2.0)), 10) * params.bambooDepth
+      ? Math.pow(Math.abs(Math.cos(sampleAngle * params.bambooVerticalFreq / 2.0)), 10) * params.bambooDepth
       : 0;
     r += bambooHoriz + bambooVert;
   }
 
   // ── Diamond knurling ──────────────────────────────────────────────────
   if (params.diamondDepth > 0) {
-    const A = evalAngle * params.diamondFreq;
-    const B = evalTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
+    const A = sampleAngle * params.diamondFreq;
+    const B = sampleTwistY * params.height * (params.diamondFreq / (params.bottomRadius || 1));
     r += (1.0 - Math.max(Math.abs(Math.sin(A + B)), Math.abs(Math.sin(A - B)))) * params.diamondDepth;
   }
 
   // ── Perlin FBM noise ─────────────────────────────────────────────────
   if (params.noiseDepth > 0) {
-    const nx = r * Math.cos(evalAngle) * params.noiseScale;
+    const nx = r * Math.cos(sampleAngle) * params.noiseScale;
     const ny = spiralY * params.noiseScale;
-    const nz = r * Math.sin(evalAngle) * params.noiseScale;
+    const nz = r * Math.sin(sampleAngle) * params.noiseScale;
     r += fbm3(nx, ny, nz) * params.noiseDepth;
   }
 
   // ── Reaction-Diffusion map ────────────────────────────────────────────
   if (params.rdDepth > 0 && rdMap) {
-    const rdU = (Math.round((evalAngle / (Math.PI * 2)) * RD_RES) + RD_RES) % RD_RES;
-    const rdV = Math.min(RD_RES - 1, Math.round(evalTwistY * (RD_RES - 1)));
+    const rdU = (Math.round((sampleAngle / (Math.PI * 2)) * RD_RES) + RD_RES) % RD_RES;
+    const rdV = Math.min(RD_RES - 1, Math.round(sampleTwistY * (RD_RES - 1)));
     r += rdMap[rdV * RD_RES + rdU] * params.rdDepth;
   }
 
   // ── Voronoi distance field ────────────────────────────────────────────
   if (params.voronoiDepth > 0 && voronoiMap) {
-    const vU = (Math.round((evalAngle / (Math.PI * 2)) * VOI_RES) + VOI_RES) % VOI_RES;
-    const vV = Math.min(VOI_RES - 1, Math.round(evalTwistY * (VOI_RES - 1)));
+    const vU = (Math.round((sampleAngle / (Math.PI * 2)) * VOI_RES) + VOI_RES) % VOI_RES;
+    const vV = Math.min(VOI_RES - 1, Math.round(sampleTwistY * (VOI_RES - 1)));
     r += voronoiMap[vV * VOI_RES + vU] * params.voronoiDepth;
   }
 
   return r;
 }
+

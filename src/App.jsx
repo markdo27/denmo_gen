@@ -72,7 +72,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       params.bambooDepth > 0        || params.diamondDepth > 0         ||
       params.noiseDepth > 0         || params.rdDepth > 0              ||
       params.voronoiDepth > 0       || params.crossSection !== 'circle'||
-      params.mirrorX                || params.mirrorZ;
+      params.mirrorX || params.mirrorY || params.mirrorZ;
 
     if (needsPass) {
       const posAttr = geo.attributes.position;
@@ -81,20 +81,16 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       for (let i = 0; i < posAttr.count; i++) {
         vtx.fromBufferAttribute(posAttr, i);
 
-        const origAngle  = Math.atan2(vtx.z, vtx.x);
-        let   evalAngle  = origAngle;
-        if (params.mirrorX && vtx.x < 0) evalAngle = Math.PI - origAngle;
-        if (params.mirrorZ && vtx.z < 0) evalAngle = -evalAngle;
-
+        // Raw cylindrical angle — applyRadiusModifiers handles all mirror folding
+        const rawAngle   = Math.atan2(vtx.z, vtx.x);
         const baseR      = Math.sqrt(vtx.x * vtx.x + vtx.z * vtx.z);
         const twistYNorm = vtx.y / params.height;
-        const evalTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
 
-        const r = applyRadiusModifiers(evalAngle, evalTwistY, vtx.y, baseR, params, rdMap, voronoiMap);
+        const r = applyRadiusModifiers(rawAngle, twistYNorm, vtx.y, baseR, params, rdMap, voronoiMap);
 
-        let finalAngle = evalAngle + evalTwistY * params.twistAngle;
-        if (params.mirrorZ && vtx.z < 0) finalAngle = -finalAngle;
-        if (params.mirrorX && vtx.x < 0) finalAngle = Math.PI - finalAngle;
+        // Twist is applied to the original angle (not the folded sample angle)
+        const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
+        const finalAngle   = rawAngle + sampleTwistY * params.twistAngle;
 
         posAttr.setXYZ(i, r * Math.cos(finalAngle), vtx.y, r * Math.sin(finalAngle));
       }
@@ -278,9 +274,6 @@ export default function App() {
   const [rdMap,          setRdMap]          = useState(null);
   const [rdComputing,    setRdComputing]    = useState(false);
   const [gcodeExporting, setGcodeExporting] = useState(false);
-  const [mirrorX,        setMirrorX]        = useState(false);
-  const [mirrorY,        setMirrorY]        = useState(false);
-  const [mirrorZ,        setMirrorZ]        = useState(false);
 
   const meshRef       = useRef();
   const rdWorkerRef   = useRef(null);
@@ -333,6 +326,9 @@ export default function App() {
     }, { collapsed: true }),
 
     Modifiers: folder({
+      mirrorX:            false,
+      mirrorY:            false,
+      mirrorZ:            false,
       twistAngle:         { value: 0,   min: 0,   max: Math.PI * 4, step: 0.1,  label: 'Twist'         },
       diamondFreq:        { value: 0,   min: 0,   max: 32,          step: 1,    label: 'Diamond Freq'  },
       diamondDepth:       { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Diamond Depth' },
@@ -399,12 +395,6 @@ export default function App() {
     if (params.voronoiDepth === 0) return null;
     return computeVoronoi({ resolution: 256, numSeeds: params.voronoiSeeds, seed: params.voronoiSeedInt });
   }, [params.voronoiDepth, params.voronoiSeeds, params.voronoiSeedInt]);
-
-  // ── Merge mirror state into params so child components use one object ──
-  const mergedParams = useMemo(
-    () => ({ ...params, mirrorX, mirrorY, mirrorZ }),
-    [params, mirrorX, mirrorY, mirrorZ]
-  );
 
   // ── Appearance controls ────────────────────────────────────────────────
   const styleParams = useControls('Appearance', {
@@ -480,7 +470,7 @@ export default function App() {
     );
 
     worker.postMessage({
-      params: { ...mergedParams },
+      params: { ...params },
       customProfileData: [...customProfileData],
       rdMap:        rdMap        ? rdMap.slice()        : null,
       voronoiMap:   voronoiMap   ? voronoiMap.slice()   : null,
@@ -563,40 +553,6 @@ export default function App() {
           <div className="btn-text">{gcodeExporting ? 'COMPUTING…' : 'G-CODE'}</div>
           <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
         </button>
-
-        {/* Mirror axis invert buttons */}
-        <div className="mirror-group" role="group" aria-label="Mirror axis toggles">
-          <div className="mirror-label">MIRROR AXES</div>
-          <div className="mirror-row">
-            <button
-              className="export-btn mirror-btn"
-              onClick={() => setMirrorX(x => !x)}
-              aria-pressed={mirrorX}
-              aria-label="Toggle mirror X axis"
-            >
-              <div className="btn-text">X</div>
-              <div className="btn-icon-wrapper">↔</div>
-            </button>
-            <button
-              className="export-btn mirror-btn"
-              onClick={() => setMirrorY(y => !y)}
-              aria-pressed={mirrorY}
-              aria-label="Toggle mirror Y axis"
-            >
-              <div className="btn-text">Y</div>
-              <div className="btn-icon-wrapper">↕</div>
-            </button>
-            <button
-              className="export-btn mirror-btn"
-              onClick={() => setMirrorZ(z => !z)}
-              aria-pressed={mirrorZ}
-              aria-label="Toggle mirror Z axis"
-            >
-              <div className="btn-text">Z</div>
-              <div className="btn-icon-wrapper">⇄</div>
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Leva panel */}
@@ -649,7 +605,7 @@ export default function App() {
         {viewMode === '3D' ? (
           <>
             <Lamp
-              params={mergedParams}
+              params={params}
               customProfileData={customProfileData}
               materialProps={materialProps}
               meshRef={meshRef}
@@ -666,7 +622,7 @@ export default function App() {
           </>
         ) : (
           <GCodeViewer
-            params={mergedParams}
+            params={params}
             customProfileData={customProfileData}
             rdMap={rdMap}
             voronoiMap={voronoiMap}
