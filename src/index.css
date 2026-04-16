@@ -253,3 +253,37 @@ body {
 .view-toggle-btn .btn-text {
   color: var(--accent-color);
 }
+
+/* RD map computing status indicator */
+.rd-status {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--accent-color);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: rd-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rd-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* G-code computing button state */
+.btn-computing {
+  opacity: 0.65;
+  cursor: wait;
+  border-color: var(--accent-color) !important;
+}
+
+.btn-computing .btn-text {
+  color: var(--accent-color);
+  animation: rd-pulse 0.8s ease-in-out infinite;
+}
+
+.btn-computing .btn-icon-wrapper {
+  background: var(--accent-color);
+  color: var(--bg-color);
+  animation: rd-pulse 0.8s ease-in-out infinite;
+}
