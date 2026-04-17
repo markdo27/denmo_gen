@@ -1,0 +1,584 @@
+/* ============================================================
+   LAMP-IFIER — Dedicated Stylesheet
+   CAD-Dark aesthetic, zero bleed to existing generator styles
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap');
+
+/* ─── CSS Variables ─── */
+:root {
+  --lf-bg:          #080808;
+  --lf-surface:     #0f0f0f;
+  --lf-surface-2:   #161616;
+  --lf-surface-3:   #1e1e1e;
+  --lf-border:      #272727;
+  --lf-border-hi:   #3a3a3a;
+  --lf-text-1:      #f0f0f0;
+  --lf-text-2:      #888888;
+  --lf-text-3:      #555555;
+  --lf-accent:      #00ff9d;
+  --lf-accent-dim:  rgba(0, 255, 157, 0.12);
+  --lf-accent-glow: rgba(0, 255, 157, 0.35);
+  --lf-warn:        #ff3b3b;
+  --lf-warn-dim:    rgba(255, 59, 59, 0.12);
+  --lf-orange:      #ff6800;
+  --lf-panel-w:     360px;
+  --lf-font:        'IBM Plex Mono', 'Space Mono', monospace;
+  --lf-radius:      0px;
+  --lf-transition:  180ms ease;
+}
+
+/* ─── Base Reset for Lamp-ifier scope ─── */
+.lf-root * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.lf-root {
+  width: 100vw;
+  height: 100vh;
+  background: var(--lf-bg);
+  color: var(--lf-text-1);
+  font-family: var(--lf-font);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── Nav Bar ─── */
+.lf-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: var(--lf-bg);
+  border-bottom: 1px solid var(--lf-border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 100;
+  gap: 0;
+}
+
+.lf-nav-logo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--lf-text-2);
+  text-transform: uppercase;
+  text-decoration: none;
+  margin-right: 32px;
+  transition: color var(--lf-transition);
+}
+.lf-nav-logo:hover { color: var(--lf-text-1); }
+
+.lf-nav-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--lf-border);
+  margin-right: 32px;
+}
+
+.lf-nav-link {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--lf-text-3);
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+  transition: color var(--lf-transition), border-color var(--lf-transition);
+  margin-right: 24px;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+.lf-nav-link:hover { color: var(--lf-text-1); }
+.lf-nav-link.active {
+  color: var(--lf-accent);
+  border-bottom-color: var(--lf-accent);
+}
+
+.lf-nav-badge {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--lf-text-3);
+  text-transform: uppercase;
+}
+
+/* ─── App Layout ─── */
+.lf-layout {
+  display: flex;
+  height: 100vh;
+  padding-top: 44px;
+}
+
+/* ─── Left Panel ─── */
+.lf-panel {
+  width: var(--lf-panel-w);
+  min-width: var(--lf-panel-w);
+  height: 100%;
+  background: var(--lf-surface);
+  border-right: 1px solid var(--lf-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lf-panel::-webkit-scrollbar { width: 3px; }
+.lf-panel::-webkit-scrollbar-track { background: transparent; }
+.lf-panel::-webkit-scrollbar-thumb { background: var(--lf-border); }
+
+/* ─── Panel Section ─── */
+.lf-section {
+  border-bottom: 1px solid var(--lf-border);
+  padding: 18px 20px;
+}
+.lf-section:last-child { border-bottom: none; }
+
+.lf-section-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--lf-text-3);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lf-section-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--lf-border);
+}
+
+/* ─── Drop Zone ─── */
+.lf-dropzone {
+  border: 1px dashed var(--lf-border-hi);
+  background: var(--lf-surface-2);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color var(--lf-transition), background var(--lf-transition);
+  text-align: center;
+  min-height: 110px;
+}
+.lf-dropzone:hover,
+.lf-dropzone.active {
+  border-color: var(--lf-accent);
+  background: var(--lf-accent-dim);
+}
+.lf-dropzone-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--lf-text-3);
+  transition: color var(--lf-transition);
+}
+.lf-dropzone:hover .lf-dropzone-icon,
+.lf-dropzone.active .lf-dropzone-icon { color: var(--lf-accent); }
+
+.lf-dropzone-label {
+  font-size: 11px;
+  color: var(--lf-text-2);
+  letter-spacing: 0.08em;
+}
+.lf-dropzone-sub {
+  font-size: 10px;
+  color: var(--lf-text-3);
+  letter-spacing: 0.06em;
+}
+.lf-file-name {
+  font-size: 11px;
+  color: var(--lf-accent);
+  letter-spacing: 0.06em;
+  word-break: break-all;
+  text-align: center;
+}
+
+/* ─── Form Controls ─── */
+.lf-field {
+  margin-bottom: 16px;
+}
+.lf-field:last-child { margin-bottom: 0; }
+
+.lf-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--lf-text-2);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.lf-label-value {
+  color: var(--lf-accent);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.lf-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--lf-border-hi);
+  outline: none;
+  cursor: pointer;
+}
+.lf-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--lf-accent);
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+  transition: transform var(--lf-transition);
+}
+.lf-range::-webkit-slider-thumb:hover { transform: scale(1.3); }
+.lf-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--lf-accent);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.lf-input {
+  width: 100%;
+  height: 36px;
+  background: var(--lf-surface-2);
+  border: 1px solid var(--lf-border);
+  color: var(--lf-text-1);
+  font-family: var(--lf-font);
+  font-size: 13px;
+  padding: 0 12px;
+  outline: none;
+  transition: border-color var(--lf-transition);
+  border-radius: 0;
+}
+.lf-input:focus { border-color: var(--lf-accent); }
+.lf-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lf-locked-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lf-lock-badge {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--lf-text-3);
+  border: 1px solid var(--lf-border);
+  padding: 2px 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ─── Toggle Row ─── */
+.lf-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.lf-toggle-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--lf-text-2);
+  text-transform: uppercase;
+}
+.lf-toggle {
+  position: relative;
+  width: 38px;
+  height: 20px;
+  cursor: pointer;
+}
+.lf-toggle input { display: none; }
+.lf-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--lf-surface-3);
+  border: 1px solid var(--lf-border);
+  transition: background var(--lf-transition), border-color var(--lf-transition);
+}
+.lf-toggle input:checked ~ .lf-toggle-track {
+  background: var(--lf-accent-dim);
+  border-color: var(--lf-accent);
+}
+.lf-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  background: var(--lf-text-3);
+  transition: transform var(--lf-transition), background var(--lf-transition);
+}
+.lf-toggle input:checked ~ .lf-toggle-knob {
+  transform: translateX(18px);
+  background: var(--lf-accent);
+}
+
+/* ─── Cylinder Info Cards ─── */
+.lf-cut-card {
+  background: var(--lf-surface-2);
+  border: 1px solid var(--lf-border);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lf-cut-card:last-child { margin-bottom: 0; }
+.lf-cut-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+.lf-cut-dot.top { background: var(--lf-accent); }
+.lf-cut-dot.bottom { background: var(--lf-orange); }
+.lf-cut-info {}
+.lf-cut-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--lf-text-1);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.lf-cut-spec {
+  font-size: 10px;
+  color: var(--lf-text-3);
+  letter-spacing: 0.06em;
+}
+
+/* ─── Status Bar ─── */
+.lf-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 10px;
+  color: var(--lf-text-3);
+  letter-spacing: 0.08em;
+}
+.lf-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lf-border);
+  flex-shrink: 0;
+  transition: background var(--lf-transition);
+}
+.lf-status-dot.ready { background: var(--lf-accent); box-shadow: 0 0 6px var(--lf-accent-glow); }
+.lf-status-dot.processing { background: var(--lf-orange); animation: lf-pulse 1s ease-in-out infinite; }
+.lf-status-dot.error { background: var(--lf-warn); }
+
+@keyframes lf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ─── Buttons ─── */
+.lf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--lf-border);
+  color: var(--lf-text-1);
+  font-family: var(--lf-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--lf-transition), background var(--lf-transition), color var(--lf-transition);
+  border-radius: 0;
+  margin-bottom: 10px;
+}
+.lf-btn:last-child { margin-bottom: 0; }
+.lf-btn:hover:not(:disabled) {
+  border-color: var(--lf-accent);
+  background: var(--lf-accent-dim);
+  color: var(--lf-accent);
+}
+.lf-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.lf-btn.primary {
+  background: var(--lf-accent);
+  border-color: var(--lf-accent);
+  color: #000;
+}
+.lf-btn.primary:hover:not(:disabled) {
+  background: #00ffb0;
+  border-color: #00ffb0;
+  color: #000;
+}
+.lf-btn-arrow {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ─── Safety Warning ─── */
+.lf-warning {
+  background: var(--lf-warn-dim);
+  border: 1px solid var(--lf-warn);
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+}
+.lf-warning-icon {
+  color: var(--lf-warn);
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.lf-warning-body {}
+.lf-warning-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--lf-warn);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.lf-warning-text {
+  font-size: 10px;
+  line-height: 1.65;
+  color: #e87070;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Right Panel / Viewport ─── */
+.lf-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.lf-viewport-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.lf-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.lf-empty-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--lf-border-hi);
+}
+.lf-empty-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--lf-text-3);
+  text-transform: uppercase;
+}
+.lf-empty-sub {
+  font-size: 11px;
+  color: var(--lf-text-3);
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+
+/* ─── Viewport corner labels ─── */
+.lf-corner-label {
+  position: absolute;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--lf-text-3);
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 10;
+}
+.lf-corner-label.top-left  { top: 14px; left: 16px; }
+.lf-corner-label.top-right { top: 14px; right: 16px; }
+.lf-corner-label.bot-left  { bottom: 14px; left: 16px; }
+.lf-corner-label.bot-right { bottom: 14px; right: 16px; }
+
+/* ─── Processing Overlay ─── */
+.lf-processing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(8,8,8,0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 20;
+  backdrop-filter: blur(4px);
+}
+.lf-processing-spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--lf-border);
+  border-top-color: var(--lf-accent);
+  border-radius: 50%;
+  animation: lf-spin 0.8s linear infinite;
+}
+@keyframes lf-spin { to { transform: rotate(360deg); } }
+.lf-processing-text {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--lf-accent);
+  text-transform: uppercase;
+}
+
+/* ─── Error Toast ─── */
+.lf-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--lf-surface-2);
+  border: 1px solid var(--lf-warn);
+  padding: 14px 18px;
+  font-size: 11px;
+  color: var(--lf-warn);
+  letter-spacing: 0.06em;
+  z-index: 200;
+  max-width: 320px;
+  animation: lf-slide-up 200ms ease;
+}
+@keyframes lf-slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
