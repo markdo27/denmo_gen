@@ -511,53 +511,62 @@ export default function App() {
         onChange={handleImageUpload} aria-hidden="true" tabIndex="-1"
       />
 
-      {/* Title */}
-      <div className="title-container">
-        <div className="app-title">DENMO_PROJECT:</div>
-        <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
-        {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
-        <button
-          className="export-btn"
-          style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.18em', opacity: 0.7 }}
-          onClick={() => { window.location.hash = '/lampifier'; }}
-          aria-label="Open Lamp-ifier — AI model hollowing and E27 hardware prep tool"
-        >
-          <div className="btn-text">→ LAMP-IFIER TOOL</div>
-          <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
-        </button>
-      </div>
+      {/* Left sidebar panel */}
+      <div className="sidebar-panel">
+        {/* Header section */}
+        <div className="sidebar-header">
+          <div className="app-title">DENMO_PROJECT:</div>
+          <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
+          {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
+        </div>
 
-      {/* Action buttons */}
-      <div className="ui-container">
-        {/* Primary: viewport toggle */}
-        <button
-          className="export-btn view-toggle-btn"
-          onClick={() => setViewMode(m => m === '3D' ? 'G-CODE' : '3D')}
-          aria-label="Toggle view mode"
-        >
-          <div className="btn-text">VIEW PORT: [ {viewMode} ]</div>
-          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
-        </button>
+        {/* Divider */}
+        <div className="sidebar-divider" />
 
-        {/* Secondary: export group */}
-        <div className="export-group">
-          <div className="export-group-label">EXPORT_</div>
-          <div className="export-group-row">
+        {/* 01 — Viewport */}
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">01_VIEW</div>
+          <button
+            className="export-btn view-toggle-btn"
+            onClick={() => setViewMode(m => m === '3D' ? 'G-CODE' : '3D')}
+            aria-label="Toggle view mode"
+          >
+            <div className="btn-text">VIEWPORT: [ {viewMode} ]</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
+          </button>
+        </div>
+
+        {/* 02 — Export */}
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">02_EXPORT</div>
+          <div className="sidebar-btn-row">
             <button className="export-btn" onClick={exportSTL} aria-label="Export as STL">
-              <div className="btn-text">STL FILE</div>
-              <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
+              <div className="btn-text">STL</div>
+              <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
-
             <button
               className={`export-btn${gcodeExporting ? ' btn-computing' : ''}`}
               onClick={exportGCode}
               disabled={gcodeExporting}
               aria-label="Export directly printable G-Code"
             >
-              <div className="btn-text">{gcodeExporting ? 'COMPUTING…' : 'G-CODE'}</div>
-              <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
+              <div className="btn-text">{gcodeExporting ? 'WAIT…' : 'G-CODE'}</div>
+              <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
           </div>
+        </div>
+
+        {/* 03 — Tools */}
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">03_TOOLS</div>
+          <button
+            className="export-btn sidebar-tool-btn"
+            onClick={() => { window.location.hash = '/lampifier'; }}
+            aria-label="Open Lamp-ifier tool"
+          >
+            <div className="btn-text">→ LAMP-IFIER</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
+          </button>
         </div>
       </div>
 

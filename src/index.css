@@ -47,81 +47,108 @@ body {
   outline-offset: 4px;
 }
 
-.title-container {
+/* ── Sidebar Panel ─────────────────────────────────────────────────── */
+.sidebar-panel {
   position: absolute;
-  top: 40px;
-  left: 40px;
-  z-index: 10;
+  top: 32px;
+  left: 32px;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
-  pointer-events: none;
+  gap: 0;
+  max-width: 320px;
+}
+
+.sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .app-title {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 400;
   color: var(--text-secondary);
   text-transform: uppercase;
-  margin-bottom: 24px;
+  letter-spacing: 0.12em;
 }
 
 .app-subtitle {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0px;
   text-transform: uppercase;
-  max-width: 340px;
-  line-height: 1.5;
+  line-height: 1.6;
+  max-width: 300px;
 }
 
-.ui-container {
-  position: absolute;
-  top: 180px;
-  left: 40px;
-  z-index: 10000;  /* must be above Leva panel (z-index: 1000) */
+.sidebar-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border-color);
+  opacity: 0.15;
+  margin: 16px 0;
+}
+
+.sidebar-section {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
+.sidebar-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.sidebar-btn-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
 .export-btn {
   background: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   cursor: pointer;
   display: inline-flex;
   align-items: stretch;
   padding: 0;
-  min-width: fit-content;
-  min-height: 44px;  /* consistent touch target */
-  transition: all 0.2s ease;
+  min-height: 40px;
+  transition: all 0.15s ease;
 }
 
 .btn-text {
-  padding: 0 16px;
+  padding: 0 14px;
   border-right: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   white-space: nowrap;
-  transition: all 0.1s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-icon-wrapper {
   background: var(--border-color);
   color: var(--bg-color);
-  padding: 0 12px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.1s ease;
+  transition: all 0.15s ease;
 }
 
 .export-btn:hover .btn-text {
@@ -205,15 +232,13 @@ body {
 }
 
 @media (max-width: 768px) {
-  .title-container, .ui-container {
-    left: 20px;
+  .sidebar-panel {
+    top: 16px;
+    left: 16px;
+    max-width: calc(100vw - 32px);
   }
-  .title-container {
-    top: 20px;
-  }
-  .ui-container {
-    top: 120px;
-    flex-wrap: wrap;
+  .app-subtitle {
+    font-size: 12px;
   }
   .footer-container {
     padding: 16px 20px;
@@ -254,30 +279,24 @@ body {
   word-break: break-all;
 }
 
+/* View toggle accent */
+.view-toggle-btn {
+  border-color: var(--accent-color);
+}
 .view-toggle-btn .btn-text {
   color: var(--accent-color);
 }
-
-/* Export button group */
-.export-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
+.view-toggle-btn .btn-icon-wrapper {
+  background: var(--accent-color);
 }
 
-.export-group-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+/* Tool link subtle style */
+.sidebar-tool-btn {
+  border-color: var(--text-secondary);
+  opacity: 0.7;
 }
-
-.export-group-row {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
+.sidebar-tool-btn:hover {
+  opacity: 1;
 }
 
 /* RD map computing status indicator */
