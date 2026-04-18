@@ -3,20 +3,17 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import LampifierApp from './LampifierApp.jsx'
+import GcodeEditorApp from './GcodeEditorApp.jsx'
 
-// ── Hash-based router ──────────────────────────────────────────────────────
-// /#/lampifier  →  Lamp-ifier tool
-// /#/  (or anything else)  →  Parametric Generator
 function Root() {
   const [hash, setHash] = useState(window.location.hash);
-
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash);
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-
-  if (hash.startsWith('#/lampifier')) return <LampifierApp />;
+  if (hash.startsWith('#/lampifier'))   return <LampifierApp />;
+  if (hash.startsWith('#/gcode-editor')) return <GcodeEditorApp />;
   return <App />;
 }
 

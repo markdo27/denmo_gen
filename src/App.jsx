@@ -518,6 +518,24 @@ export default function App() {
           <div className="app-title">DENMO_PROJECT:</div>
           <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
           {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
+          <button
+            className="export-btn"
+            style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.18em', opacity: 0.7 }}
+            onClick={() => { window.location.hash = '/lampifier'; }}
+            aria-label="Open Lamp-ifier — AI model hollowing and E27 hardware prep tool"
+          >
+            <div className="btn-text">→ LAMP-IFIER</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={14} aria-hidden="true" /></div>
+          </button>
+          <button
+            className="export-btn"
+            style={{ marginTop: 5, fontSize: 10, letterSpacing: '0.18em', opacity: 0.7 }}
+            onClick={() => { window.location.hash = '/gcode-editor'; }}
+            aria-label="Open G-Code Visual Editor"
+          >
+            <div className="btn-text">→ G-CODE EDITOR</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={14} aria-hidden="true" /></div>
+          </button>
         </div>
 
         {/* Divider */}
