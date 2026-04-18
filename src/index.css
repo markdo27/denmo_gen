@@ -79,7 +79,7 @@ body {
   position: absolute;
   top: 180px;
   left: 40px;
-  z-index: 10;
+  z-index: 10000;  /* must be above Leva panel (z-index: 1000) */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -91,18 +91,20 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.06em;
   cursor: pointer;
   display: inline-flex;
   align-items: stretch;
   padding: 0;
   min-width: fit-content;
+  min-height: 44px;  /* consistent touch target */
   transition: all 0.2s ease;
 }
 
 .btn-text {
-  padding: 8px 16px;
+  padding: 0 16px;
   border-right: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -115,7 +117,7 @@ body {
 .btn-icon-wrapper {
   background: var(--border-color);
   color: var(--bg-color);
-  padding: 8px 10px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   justify-content: center;
