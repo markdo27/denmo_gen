@@ -256,6 +256,28 @@ body {
   color: var(--accent-color);
 }
 
+/* Export button group */
+.export-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.export-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.export-group-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
 /* RD map computing status indicator */
 .rd-status {
   margin-top: 12px;

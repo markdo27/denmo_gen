@@ -529,6 +529,7 @@ export default function App() {
 
       {/* Action buttons */}
       <div className="ui-container">
+        {/* Primary: viewport toggle */}
         <button
           className="export-btn view-toggle-btn"
           onClick={() => setViewMode(m => m === '3D' ? 'G-CODE' : '3D')}
@@ -538,30 +539,26 @@ export default function App() {
           <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
         </button>
 
-        <button
-          className="export-btn"
-          onClick={() => setIsGlowing(g => !g)}
-          aria-pressed={isGlowing}
-          aria-label="Toggle inner glow simulation"
-        >
-          <div className="btn-text">SIMULATE GLOW</div>
-          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
-        </button>
+        {/* Secondary: export group */}
+        <div className="export-group">
+          <div className="export-group-label">EXPORT_</div>
+          <div className="export-group-row">
+            <button className="export-btn" onClick={exportSTL} aria-label="Export as STL">
+              <div className="btn-text">STL FILE</div>
+              <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
+            </button>
 
-        <button className="export-btn" onClick={exportSTL} aria-label="Export as STL">
-          <div className="btn-text">STL FILE</div>
-          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
-        </button>
-
-        <button
-          className={`export-btn${gcodeExporting ? ' btn-computing' : ''}`}
-          onClick={exportGCode}
-          disabled={gcodeExporting}
-          aria-label="Export directly printable G-Code"
-        >
-          <div className="btn-text">{gcodeExporting ? 'COMPUTING…' : 'G-CODE'}</div>
-          <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
-        </button>
+            <button
+              className={`export-btn${gcodeExporting ? ' btn-computing' : ''}`}
+              onClick={exportGCode}
+              disabled={gcodeExporting}
+              aria-label="Export directly printable G-Code"
+            >
+              <div className="btn-text">{gcodeExporting ? 'COMPUTING…' : 'G-CODE'}</div>
+              <div className="btn-icon-wrapper"><ArrowUpRight size={18} aria-hidden="true" /></div>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Leva panel */}
