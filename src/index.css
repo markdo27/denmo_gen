@@ -298,11 +298,38 @@ body {
 .view-toggle-btn.active-mode .btn-text { color: var(--accent-hot); }
 
 /* â”€â”€ Tool link subtle style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Tool buttons share the same look as all other export-btn entries */
 .sidebar-tool-btn {
-  border-color: var(--border-dim);
-  opacity: 0.65;
+  border-color: var(--border-color);
 }
-.sidebar-tool-btn:hover { opacity: 1; }
+
+/* BETA badge */
+.beta-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 5px;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #000;
+  background: var(--warn-color);
+  border: 1px solid var(--warn-color);
+  vertical-align: middle;
+  line-height: 1.6;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+/* Invert badge so it stays readable on amber hover */
+.export-btn:hover .beta-badge,
+.export-btn[aria-pressed="true"] .beta-badge {
+  background: #000;
+  color: var(--warn-color);
+  border-color: #000;
+}
 
 /* â”€â”€ RD computing indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .rd-status {

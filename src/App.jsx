@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Grid } from '@react-three/d
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { ArrowUpRight, AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
 import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
@@ -915,7 +915,7 @@ export default function App() {
         {/* Header section */}
         <div className="sidebar-header">
           <div className="app-title">DENMO_PROJECT: v2</div>
-          <div className="app-subtitle">Parametric Lamp<br/>Generator &amp; Printer</div>
+          <div className="app-subtitle">DENMO BUILDER</div>
           {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
         </div>
 
@@ -1016,14 +1016,14 @@ export default function App() {
             onClick={() => { window.location.hash = '/lampifier'; }}
             aria-label="Open Lamp-ifier tool"
           >
-            <div className="btn-text">→ LAMP-IFIER</div>
+            <div className="btn-text">LAMP-IFIER<span className="beta-badge">BETA</span></div>
           </button>
           <button
             className="export-btn sidebar-tool-btn"
             onClick={() => { window.location.hash = '/gcode-editor'; }}
             aria-label="Open G-Code Visual Editor"
           >
-            <div className="btn-text">→ G-CODE EDITOR</div>
+            <div className="btn-text">G-CODE EDITOR<span className="beta-badge">BETA</span></div>
           </button>
         </div>
       </div>
@@ -1050,7 +1050,7 @@ export default function App() {
         </div>
         <div className="footer-logo">
           <a href="https://www.facebook.com/mark.do2102/" target="_blank" rel="noreferrer">
-            FACEBOOK <ArrowUpRight size={12}/>
+            FACEBOOK
           </a>
           <span style={{ color: 'var(--text-tertiary)' }}>·</span>
           <span>DEV BY US</span>
