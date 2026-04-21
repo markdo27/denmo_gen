@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Syne:wght@700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Syne:wght@700;800&display=swap');
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    DENMO DESIGN SYSTEM
@@ -174,67 +174,39 @@ body {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
-  display: inline-flex;
-  align-items: stretch;
-  padding: 0;
-  min-height: 36px;
-  transition: all 0.12s ease;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  min-height: 34px;
+  width: 100%;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
 }
 
 .btn-text {
-  padding: 0 12px;
-  border-right: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 5px;
-  white-space: nowrap;
-  transition: all 0.12s ease;
-  font-size: 10px;
+  pointer-events: none;
 }
 
-.btn-icon-wrapper {
-  background: var(--border-color);
-  color: var(--bg-color);
-  padding: 0 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.12s ease;
-}
-
-/* Hover: amber flash */
+/* Hover: amber fill */
 .export-btn:hover {
-  border-color: var(--accent-hot);
-}
-.export-btn:hover .btn-text {
   background: var(--accent-hot);
+  border-color: var(--accent-hot);
   color: #000;
-  border-right-color: transparent;
-}
-.export-btn:hover .btn-icon-wrapper {
-  background: #000;
-  color: var(--accent-hot);
 }
 
-.export-btn:active {
-  transform: scale(0.97);
-}
+.export-btn:active { transform: scale(0.98); }
 
-/* Active/pressed state (aria-pressed) */
+/* Toggled / pressed state */
 .export-btn[aria-pressed="true"] {
-  border-color: var(--accent-hot);
-}
-.export-btn[aria-pressed="true"] .btn-text {
   background: var(--accent-hot);
+  border-color: var(--accent-hot);
   color: #000;
-  border-right-color: transparent;
-}
-.export-btn[aria-pressed="true"] .btn-icon-wrapper {
-  background: #000;
-  color: var(--accent-hot);
 }
 
 /* â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -353,14 +325,7 @@ body {
   opacity: 0.7;
   cursor: wait;
   border-color: var(--accent-hot) !important;
-}
-.btn-computing .btn-text {
   color: var(--accent-hot);
-  animation: rd-pulse 0.9s ease-in-out infinite;
-}
-.btn-computing .btn-icon-wrapper {
-  background: var(--accent-hot);
-  color: #000;
   animation: rd-pulse 0.9s ease-in-out infinite;
 }
 
@@ -369,8 +334,6 @@ body {
 .mirror-label { font-size: 9px; font-weight: 400; color: var(--text-secondary); letter-spacing: 0.12em; text-transform: uppercase; }
 .mirror-row { display: flex; gap: 6px; }
 .mirror-btn { flex: 1; min-width: 0; }
-.mirror-btn .btn-text { flex: 1; justify-content: center; font-size: 12px; letter-spacing: 0.04em; }
-.mirror-btn .btn-icon-wrapper { font-size: 13px; padding: 7px 7px; }
 
 /* â”€â”€ Sub-labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* (already defined above as .sidebar-section-sublabel) */
@@ -466,13 +429,11 @@ body {
 .tip-reason { color: var(--text-secondary); font-size: 7px; opacity: 0.65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* â”€â”€ Overhang / Wireframe overlay toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.overlay-active   { border-color: var(--ok-color) !important; }
-.overlay-active .btn-text  { color: var(--ok-color); }
-.overlay-active .btn-icon-wrapper { background: var(--ok-color); color: #000; }
+.overlay-active   { background: var(--ok-color) !important; border-color: var(--ok-color) !important; color: #000 !important; }
+.overlay-active:hover { background: var(--ok-color) !important; }
 
-.wireframe-active   { border-color: var(--ok-color) !important; }
-.wireframe-active .btn-text  { color: var(--ok-color); }
-.wireframe-active .btn-icon-wrapper { background: var(--ok-color); color: #000; }
+.wireframe-active { background: var(--ok-color) !important; border-color: var(--ok-color) !important; color: #000 !important; }
+.wireframe-active:hover { background: var(--ok-color) !important; }
 
 .wireframe-computing {
   color: var(--warn-color);
@@ -580,11 +541,12 @@ body {
 
 .modal-actions { display: flex; gap: 7px; margin-top: 4px; }
 .modal-cancel  { flex: 1; border-color: var(--border-dim); }
-.modal-confirm { flex: 2; border-color: var(--crit-color); }
-.modal-confirm .btn-text  { color: var(--crit-color); }
-.modal-confirm .btn-icon-wrapper { background: var(--crit-color); }
-.modal-confirm:hover .btn-text         { background: var(--crit-color); color: #000; }
-.modal-confirm:hover .btn-icon-wrapper { background: #000; color: var(--crit-color); }
+.modal-confirm {
+  flex: 2;
+  border-color: var(--crit-color);
+  color: var(--crit-color);
+}
+.modal-confirm:hover { background: var(--crit-color); border-color: var(--crit-color); color: #000; }
 
 /* â”€â”€ Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (max-width: 768px) {

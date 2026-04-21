@@ -454,11 +454,9 @@ function ExportGateModal({ onConfirm, onCancel, report }) {
         <div className="modal-actions">
           <button className="export-btn modal-cancel" onClick={onCancel}>
             <div className="btn-text">CANCEL</div>
-            <div className="btn-icon-wrapper"><XCircle size={14} /></div>
           </button>
           <button className="export-btn modal-confirm" onClick={onConfirm}>
             <div className="btn-text">EXPORT ANYWAY</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={14} /></div>
           </button>
         </div>
       </div>
@@ -936,7 +934,6 @@ export default function App() {
             aria-label="Toggle view mode"
           >
             <div className="btn-text">VIEWPORT: [ {viewMode} ]</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
           <button
             className={`export-btn${showOverlay ? ' overlay-active' : ''}`}
@@ -945,7 +942,6 @@ export default function App() {
             aria-pressed={showOverlay}
           >
             <div className="btn-text"><Layers size={12} style={{marginRight:4}} />OVERHANG MAP</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
           <button
             className={`export-btn${showWireframe ? ' wireframe-active' : ''}`}
@@ -960,7 +956,6 @@ export default function App() {
                 <span className="wireframe-computing"> ●</span>
               )}
             </div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
         </div>
 
@@ -992,7 +987,6 @@ export default function App() {
               aria-label="Export as STL with retopology"
             >
               <div className="btn-text">{retopoStatus === 'working' ? 'RETOPO…' : 'STL'}</div>
-              <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
             <button
               className={`export-btn${gcodeExporting ? ' btn-computing' : ''}`}
@@ -1001,7 +995,6 @@ export default function App() {
               aria-label="Export directly printable G-Code"
             >
               <div className="btn-text">{gcodeExporting ? 'WAIT…' : 'G-CODE'}</div>
-              <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
           </div>
 
@@ -1024,7 +1017,6 @@ export default function App() {
             aria-label="Open Lamp-ifier tool"
           >
             <div className="btn-text">→ LAMP-IFIER</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
           <button
             className="export-btn sidebar-tool-btn"
@@ -1032,7 +1024,6 @@ export default function App() {
             aria-label="Open G-Code Visual Editor"
           >
             <div className="btn-text">→ G-CODE EDITOR</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
         </div>
       </div>
