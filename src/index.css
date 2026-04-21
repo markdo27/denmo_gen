@@ -1,14 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Syne:wght@700;800&display=swap');
 
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   DENMO DESIGN SYSTEM
+   Tone: Industrial-Futurist / Retro-Technical
+   Palette: Deep black + electric amber accent
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 :root {
-  --bg-color: #050505;
-  --surface-primary: #000000;
-  --text-primary: #ffffff;
-  --text-secondary: #a0a0a0;
-  --accent-color: #d0f0ec;
-  --border-color: #ffffff;
+  /* Neutrals */
+  --bg-color:       #030303;
+  --surface-0:      #000000;
+  --surface-1:      #0d0d0d;
+  --surface-2:      #161616;
+  --border-dim:     rgba(255,255,255,0.10);
+  --border-color:   rgba(255,255,255,0.75);
+  --text-primary:   #f0ede8;
+  --text-secondary: #6b6b6b;
+  --text-tertiary:  #3a3a3a;
 
-  font-family: 'Space Mono', 'Courier New', monospace;
+  /* Accent â€” electric amber (replaces flat white accent) */
+  --accent-color:   #d0f0ec;   /* kept for legacy compatibility */
+  --accent-hot:     #f5a623;   /* amber â€” highlight */
+  --accent-glow:    rgba(245, 166, 35, 0.12);
+
+  /* Status */
+  --ok-color:       #00e87c;
+  --warn-color:     #f5a623;
+  --crit-color:     #f53b3b;
+
+  /* Type */
+  --font-mono:   'DM Mono', 'Courier New', monospace;
+  --font-display:'Syne', sans-serif;
+
+  font-family: var(--font-mono);
   color-scheme: dark;
   color: var(--text-primary);
   background-color: var(--bg-color);
@@ -22,7 +45,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  border-radius: 0 !important; /* Force brutalism corners everywhere */
+  border-radius: 0 !important;
 }
 
 body {
@@ -41,146 +64,180 @@ body {
   position: relative;
 }
 
-/* Accessibility Focus States */
 *:focus-visible {
-  outline: 1px dashed var(--accent-color);
-  outline-offset: 4px;
+  outline: 1px dashed var(--accent-hot);
+  outline-offset: 3px;
 }
 
-/* ── Sidebar Panel ─────────────────────────────────────────────────── */
+/* â”€â”€ Sidebar Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar-panel {
   position: absolute;
-  top: 32px;
-  left: 32px;
+  top: 28px;
+  left: 28px;
   z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-width: 320px;
+  max-width: 280px;
+  /* Subtle left panel feel */
+  background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 100%);
+  backdrop-filter: blur(2px);
+  border: 1px solid var(--border-dim);
+  padding: 20px 18px 18px;
 }
 
+/* â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
 .app-title {
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 9px;
   font-weight: 400;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.22em;
 }
 
 .app-subtitle {
-  font-size: 14px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
   color: var(--text-primary);
   text-transform: uppercase;
-  line-height: 1.6;
-  max-width: 300px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  max-width: 260px;
 }
 
+/* Accent line under title */
+.sidebar-header::after {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--accent-hot);
+  margin-top: 6px;
+}
+
+/* â”€â”€ Sidebar Divider / Separator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar-divider {
   width: 100%;
   height: 1px;
-  background: var(--border-color);
-  opacity: 0.15;
-  margin: 16px 0;
+  background: var(--border-dim);
+  margin: 14px 0;
 }
 
+/* â”€â”€ Section Labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 5px;
+  margin-bottom: 14px;
 }
 
 .sidebar-section-label {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--accent-hot);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-bottom: 3px;
+}
+
+.sidebar-section-sublabel {
+  font-size: 8px;
+  font-weight: 400;
   color: var(--text-secondary);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   opacity: 0.6;
+  margin-bottom: 3px;
 }
 
 .sidebar-btn-row {
   display: flex;
   flex-direction: row;
-  gap: 6px;
+  gap: 5px;
 }
 
-/* ── Buttons ───────────────────────────────────────────────────────── */
+/* â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .export-btn {
   background: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   cursor: pointer;
   display: inline-flex;
   align-items: stretch;
   padding: 0;
-  min-height: 40px;
-  transition: all 0.15s ease;
+  min-height: 36px;
+  transition: all 0.12s ease;
 }
 
 .btn-text {
-  padding: 0 14px;
+  padding: 0 12px;
   border-right: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
+  font-size: 10px;
 }
 
 .btn-icon-wrapper {
   background: var(--border-color);
   color: var(--bg-color);
-  padding: 0 10px;
+  padding: 0 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
+/* Hover: amber flash */
+.export-btn:hover {
+  border-color: var(--accent-hot);
+}
 .export-btn:hover .btn-text {
-  background: var(--border-color);
-  color: var(--bg-color);
-  border-right-color: var(--bg-color);
+  background: var(--accent-hot);
+  color: #000;
+  border-right-color: transparent;
 }
-
 .export-btn:hover .btn-icon-wrapper {
-  background: var(--bg-color);
-  color: var(--border-color);
+  background: #000;
+  color: var(--accent-hot);
 }
 
 .export-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
+/* Active/pressed state (aria-pressed) */
 .export-btn[aria-pressed="true"] {
-  border-color: var(--accent-color);
+  border-color: var(--accent-hot);
 }
-
 .export-btn[aria-pressed="true"] .btn-text {
-  background: var(--accent-color);
-  color: var(--bg-color);
-  border-right-color: var(--bg-color);
+  background: var(--accent-hot);
+  color: #000;
+  border-right-color: transparent;
 }
-
 .export-btn[aria-pressed="true"] .btn-icon-wrapper {
-  background: var(--bg-color);
-  color: var(--accent-color);
+  background: #000;
+  color: var(--accent-hot);
 }
 
+/* â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .footer-container {
   position: absolute;
   bottom: 0;
@@ -188,24 +245,28 @@ body {
   right: 0;
   display: flex;
   justify-content: space-between;
-  padding: 24px 40px;
-  border-top: 1px solid var(--border-color);
-  color: var(--text-primary);
-  font-family: 'Space Mono', monospace;
-  font-size: 12px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
   text-transform: uppercase;
+  letter-spacing: 0.14em;
   z-index: 10;
   pointer-events: none;
 }
 
 .footer-logo {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  color: var(--accent-color);
+  color: var(--text-secondary);
   pointer-events: auto;
   flex-shrink: 0;
 }
+
+.footer-logo a { color: inherit; text-decoration: none; }
+.footer-logo a:hover { color: var(--accent-hot); }
 
 .marquee-wrapper {
   flex: 1;
@@ -218,45 +279,25 @@ body {
 
 .marquee-content {
   display: inline-block;
-  animation: marquee 20s linear infinite;
+  animation: marquee 24s linear infinite;
   padding-left: 100%;
+  color: var(--text-tertiary);
+  letter-spacing: 0.18em;
 }
 
 @keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-100%);
-  }
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
 }
 
-@media (max-width: 768px) {
-  .sidebar-panel {
-    top: 16px;
-    left: 16px;
-    max-width: calc(100vw - 32px);
-  }
-  .app-subtitle {
-    font-size: 12px;
-  }
-  .footer-container {
-    padding: 16px 20px;
-    flex-direction: column;
-    gap: 16px;
-    align-items: center;
-  }
-}
-
+/* â”€â”€ G-Code text viewer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .gcode-viewer-container {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
   padding: 40px;
-  padding-left: 360px; /* offset for ui-container */
-  padding-right: 400px; /* offset for leva panel */
+  padding-left: 340px;
+  padding-right: 420px;
   box-sizing: border-box;
   background-color: var(--bg-color);
   z-index: 5;
@@ -267,44 +308,36 @@ body {
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 24px;
-  background-color: #050505;
-  border: 1px solid var(--border-color);
+  padding: 20px;
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-dim);
   color: var(--text-secondary);
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   overflow-y: auto;
   box-sizing: border-box;
   white-space: pre-wrap;
   word-break: break-all;
+  line-height: 1.7;
 }
 
-/* View toggle accent */
-.view-toggle-btn {
-  border-color: var(--accent-color);
-}
-.view-toggle-btn .btn-text {
-  color: var(--accent-color);
-}
-.view-toggle-btn .btn-icon-wrapper {
-  background: var(--accent-color);
-}
+/* â”€â”€ View-mode toggle (active state) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.view-toggle-btn { border-color: var(--border-color); }
+.view-toggle-btn.active-mode .btn-text { color: var(--accent-hot); }
 
-/* Tool link subtle style */
+/* â”€â”€ Tool link subtle style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar-tool-btn {
-  border-color: var(--text-secondary);
-  opacity: 0.7;
+  border-color: var(--border-dim);
+  opacity: 0.65;
 }
-.sidebar-tool-btn:hover {
-  opacity: 1;
-}
+.sidebar-tool-btn:hover { opacity: 1; }
 
-/* RD map computing status indicator */
+/* â”€â”€ RD computing indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .rd-status {
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--accent-color);
-  letter-spacing: 0.08em;
+  margin-top: 8px;
+  font-size: 9px;
+  color: var(--accent-hot);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   animation: rd-pulse 1.2s ease-in-out infinite;
   pointer-events: none;
@@ -312,249 +345,165 @@ body {
 
 @keyframes rd-pulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.25; }
+  50%       { opacity: 0.2; }
 }
 
-/* G-code computing button state */
+/* â”€â”€ G-code export computing state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .btn-computing {
-  opacity: 0.65;
+  opacity: 0.7;
   cursor: wait;
-  border-color: var(--accent-color) !important;
+  border-color: var(--accent-hot) !important;
 }
-
 .btn-computing .btn-text {
-  color: var(--accent-color);
-  animation: rd-pulse 0.8s ease-in-out infinite;
+  color: var(--accent-hot);
+  animation: rd-pulse 0.9s ease-in-out infinite;
 }
-
 .btn-computing .btn-icon-wrapper {
-  background: var(--accent-color);
-  color: var(--bg-color);
-  animation: rd-pulse 0.8s ease-in-out infinite;
+  background: var(--accent-hot);
+  color: #000;
+  animation: rd-pulse 0.9s ease-in-out infinite;
 }
 
-/* Mirror axis button group */
-.mirror-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
-}
+/* â”€â”€ Mirror group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.mirror-group { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.mirror-label { font-size: 9px; font-weight: 400; color: var(--text-secondary); letter-spacing: 0.12em; text-transform: uppercase; }
+.mirror-row { display: flex; gap: 6px; }
+.mirror-btn { flex: 1; min-width: 0; }
+.mirror-btn .btn-text { flex: 1; justify-content: center; font-size: 12px; letter-spacing: 0.04em; }
+.mirror-btn .btn-icon-wrapper { font-size: 13px; padding: 7px 7px; }
 
-.mirror-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
+/* â”€â”€ Sub-labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* (already defined above as .sidebar-section-sublabel) */
 
-.mirror-row {
-  display: flex;
-  gap: 8px;
-}
-
-.mirror-btn {
-  flex: 1;
-  min-width: 0;
-}
-
-.mirror-btn .btn-text {
-  flex: 1;
-  justify-content: center;
-  font-size: 13px;
-  letter-spacing: 0.05em;
-}
-
-.mirror-btn .btn-icon-wrapper {
-  font-size: 14px;
-  padding: 8px 8px;
-}
-
-/* ── Sub-labels ─────────────────────────────────────────────────────── */
-.sidebar-section-sublabel {
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-
-/* ── Overhang Warning Panel ─────────────────────────────────────────── */
+/* â”€â”€ Overhang Warning Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .overhang-panel {
   border: 1px solid;
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   overflow: hidden;
-  transition: border-color 0.25s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.overhang-panel.overhang-ok {
-  border-color: #00ff88;
-}
-.overhang-panel.overhang-caution {
-  border-color: #ffcc00;
-}
+.overhang-panel.overhang-ok          { border-color: var(--ok-color); }
+.overhang-panel.overhang-caution     { border-color: var(--warn-color); }
 .overhang-panel.overhang-critical,
 .overhang-panel.overhang-bed-overflow {
-  border-color: #ff3333;
+  border-color: var(--crit-color);
   animation: overhang-pulse 1.1s ease-in-out infinite;
 }
 
 @keyframes overhang-pulse {
-  0%, 100% { border-color: #ff3333; box-shadow: 0 0 0 0 #ff333333; }
-  50%       { border-color: #ff3333cc; box-shadow: 0 0 8px 1px #ff333355; }
+  0%, 100% { border-color: var(--crit-color); box-shadow: 0 0 0 0 rgba(245,59,59,0.2); }
+  50%       { border-color: rgba(245,59,59,0.7); box-shadow: 0 0 10px 2px rgba(245,59,59,0.15); }
 }
 
 .overhang-header {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 7px 9px;
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
   text-align: left;
 }
 
-.overhang-panel.overhang-ok .overhang-header       { color: #00ff88; }
-.overhang-panel.overhang-caution .overhang-header  { color: #ffcc00; }
+.overhang-panel.overhang-ok .overhang-header          { color: var(--ok-color); }
+.overhang-panel.overhang-caution .overhang-header     { color: var(--warn-color); }
 .overhang-panel.overhang-critical .overhang-header,
-.overhang-panel.overhang-bed-overflow .overhang-header { color: #ff3333; }
+.overhang-panel.overhang-bed-overflow .overhang-header { color: var(--crit-color); }
 
 .overhang-icon { display: flex; align-items: center; flex-shrink: 0; }
-
 .overhang-title { flex: 1; }
-
-.overhang-angle {
-  font-size: 11px;
-  font-weight: 700;
-  opacity: 0.85;
-  flex-shrink: 0;
-}
+.overhang-angle { font-size: 10px; font-weight: 500; opacity: 0.9; flex-shrink: 0; }
 
 .overhang-bed-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 10px 8px;
-  font-size: 9px;
+  padding: 0 9px 7px;
+  font-size: 8px;
   letter-spacing: 0.08em;
 }
 
-.bed-ok  { color: #00ff88; }
-.bed-err { color: #ff3333; font-weight: 700; }
-.bed-hint { color: #ff3333; opacity: 0.8; font-size: 9px; }
+.bed-ok   { color: var(--ok-color); }
+.bed-err  { color: var(--crit-color); font-weight: 500; }
+.bed-hint { color: var(--crit-color); opacity: 0.75; font-size: 8px; }
 
 .overhang-body {
-  border-top: 1px solid rgba(255,255,255,0.08);
-  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border-dim);
+  padding: 7px 9px 9px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-.overhang-zones {
-  font-size: 9px;
-  color: #ff9944;
-  letter-spacing: 0.06em;
-  word-break: break-word;
-}
-
-.overhang-suggestions { display: flex; flex-direction: column; gap: 5px; }
-
-.overhang-suggestions-title {
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.15em;
-  margin-bottom: 2px;
-}
+.overhang-zones { font-size: 8px; color: #ff9944; letter-spacing: 0.06em; word-break: break-word; }
+.overhang-suggestions { display: flex; flex-direction: column; gap: 4px; }
+.overhang-suggestions-title { font-size: 8px; font-weight: 500; color: var(--text-secondary); letter-spacing: 0.15em; margin-bottom: 2px; }
 
 .overhang-tip {
   display: grid;
   grid-template-columns: auto auto auto 1fr;
   align-items: baseline;
-  gap: 5px;
-  font-size: 9px;
-}
-
-.tip-param  { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
-.tip-arrow  { color: var(--text-secondary); }
-.tip-val    { color: #ffcc00; font-weight: 700; white-space: nowrap; }
-.tip-reason {
-  color: var(--text-secondary);
+  gap: 4px;
   font-size: 8px;
-  opacity: 0.7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* ── Overhang overlay toggle button ─────────────────────────────────── */
-.overlay-active { border-color: #00ff88 !important; }
-.overlay-active .btn-text  { color: #00ff88; }
-.overlay-active .btn-icon-wrapper { background: #00ff88; color: #000; }
+.tip-param  { color: var(--text-primary); font-weight: 500; white-space: nowrap; }
+.tip-arrow  { color: var(--text-secondary); }
+.tip-val    { color: var(--warn-color); font-weight: 500; white-space: nowrap; }
+.tip-reason { color: var(--text-secondary); font-size: 7px; opacity: 0.65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ── Wireframe toggle button ─────────────────────────────────────────── */
-.wireframe-active { border-color: #00ff88 !important; }
-.wireframe-active .btn-text  { color: #00ff88; }
-.wireframe-active .btn-icon-wrapper { background: #00ff88; color: #000; }
+/* â”€â”€ Overhang / Wireframe overlay toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.overlay-active   { border-color: var(--ok-color) !important; }
+.overlay-active .btn-text  { color: var(--ok-color); }
+.overlay-active .btn-icon-wrapper { background: var(--ok-color); color: #000; }
+
+.wireframe-active   { border-color: var(--ok-color) !important; }
+.wireframe-active .btn-text  { color: var(--ok-color); }
+.wireframe-active .btn-icon-wrapper { background: var(--ok-color); color: #000; }
 
 .wireframe-computing {
-  color: #ffcc00;
+  color: var(--warn-color);
   animation: rd-pulse 0.7s ease-in-out infinite;
 }
 
-/* Retopo button computing state: active button pulses yellow while preview runs */
-.retopo-btn.retopo-computing {
-  animation: retopo-btn-pulse 0.7s ease-in-out infinite;
-  border-color: #ffcc00 !important;
-  color: #ffcc00 !important;
-}
-
-@keyframes retopo-btn-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
-}
-
-/* ── Retopology quality selector ────────────────────────────────────── */
+/* â”€â”€ Retopology quality selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .retopo-quality-row {
   display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 3px;
+  margin-bottom: 5px;
 }
 
 .retopo-btn {
   flex: 1;
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid var(--border-dim);
   color: var(--text-secondary);
-  font-family: 'Space Mono', monospace;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 5px 2px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   white-space: nowrap;
 }
 
 .retopo-btn:hover {
-  border-color: rgba(255,255,255,0.5);
+  border-color: rgba(255,255,255,0.4);
   color: var(--text-primary);
 }
 
@@ -562,29 +511,42 @@ body {
   background: var(--text-primary);
   border-color: var(--text-primary);
   color: var(--bg-color);
+  font-weight: 500;
 }
 
-/* ── Retopo mini-report ──────────────────────────────────────────────── */
+.retopo-btn.retopo-computing {
+  animation: retopo-btn-pulse 0.7s ease-in-out infinite;
+  border-color: var(--warn-color) !important;
+  color: var(--warn-color) !important;
+}
+
+@keyframes retopo-btn-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+/* â”€â”€ Retopo mini-report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .retopo-report {
-  font-size: 9px;
-  color: #00ff88;
+  font-size: 8px;
+  color: var(--ok-color);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 4px 0;
+  padding: 3px 0;
   animation: retopo-fadein 0.4s ease;
   word-break: break-word;
+  line-height: 1.6;
 }
 
 @keyframes retopo-fadein {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Export Gate Modal ───────────────────────────────────────────────── */
+/* â”€â”€ Export Gate Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   z-index: 99999;
   display: flex;
   align-items: center;
@@ -592,58 +554,41 @@ body {
   animation: modal-in 0.15s ease;
 }
 
-@keyframes modal-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+@keyframes modal-in { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-box {
-  background: #0a0a0a;
-  border: 1px solid #ff3333;
-  padding: 32px;
-  max-width: 360px;
+  background: var(--surface-1);
+  border: 1px solid var(--crit-color);
+  padding: 28px;
+  max-width: 340px;
   width: calc(100vw - 64px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   animation: modal-slide 0.2s ease;
 }
 
 @keyframes modal-slide {
-  from { transform: translateY(12px); opacity: 0; }
+  from { transform: translateY(10px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
 
-.modal-icon {
-  color: #ff3333;
-  display: flex;
-}
-
-.modal-title {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #ff3333;
-}
-
-.modal-body {
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.7;
-}
-
+.modal-icon   { color: var(--crit-color); display: flex; }
+.modal-title  { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--crit-color); }
+.modal-body   { font-size: 10px; color: var(--text-secondary); line-height: 1.75; }
 .modal-body strong { color: var(--text-primary); }
 
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
+.modal-actions { display: flex; gap: 7px; margin-top: 4px; }
+.modal-cancel  { flex: 1; border-color: var(--border-dim); }
+.modal-confirm { flex: 2; border-color: var(--crit-color); }
+.modal-confirm .btn-text  { color: var(--crit-color); }
+.modal-confirm .btn-icon-wrapper { background: var(--crit-color); }
+.modal-confirm:hover .btn-text         { background: var(--crit-color); color: #000; }
+.modal-confirm:hover .btn-icon-wrapper { background: #000; color: var(--crit-color); }
 
-.modal-cancel  { flex: 1; border-color: rgba(255,255,255,0.3); }
-.modal-confirm { flex: 2; border-color: #ff3333; }
-.modal-confirm .btn-text  { color: #ff3333; }
-.modal-confirm .btn-icon-wrapper { background: #ff3333; }
-.modal-confirm:hover .btn-text        { background: #ff3333; color: #000; }
-.modal-confirm:hover .btn-icon-wrapper { background: #000; color: #ff3333; }
+/* â”€â”€ Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@media (max-width: 768px) {
+  .sidebar-panel { top: 12px; left: 12px; max-width: calc(100vw - 24px); padding: 14px; }
+  .app-subtitle  { font-size: 13px; }
+  .footer-container { padding: 12px 16px; flex-direction: column; gap: 10px; align-items: center; }
+}

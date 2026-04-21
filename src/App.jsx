@@ -916,12 +916,12 @@ export default function App() {
       <div className="sidebar-panel">
         {/* Header section */}
         <div className="sidebar-header">
-          <div className="app-title">DENMO_PROJECT:</div>
-          <div className="app-subtitle">PARAMETRIC 3D LAMP GENERATOR<br/>OR JUST EXPORT TO G-CODE :)</div>
+          <div className="app-title">DENMO_PROJECT: v2</div>
+          <div className="app-subtitle">Parametric Lamp<br/>Generator & Printer</div>
           {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
           <button
-            className="export-btn"
-            style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.18em', opacity: 0.7 }}
+            className="export-btn sidebar-tool-btn"
+            style={{ marginTop: 8 }}
             onClick={() => { window.location.hash = '/lampifier'; }}
             aria-label="Open Lamp-ifier — AI model hollowing and E27 hardware prep tool"
           >
@@ -929,8 +929,8 @@ export default function App() {
             <div className="btn-icon-wrapper"><ArrowUpRight size={14} aria-hidden="true" /></div>
           </button>
           <button
-            className="export-btn"
-            style={{ marginTop: 5, fontSize: 10, letterSpacing: '0.18em', opacity: 0.7 }}
+            className="export-btn sidebar-tool-btn"
+            style={{ marginTop: 4 }}
             onClick={() => { window.location.hash = '/gcode-editor'; }}
             aria-label="Open G-Code Visual Editor"
           >
@@ -1063,16 +1063,18 @@ export default function App() {
       {/* Footer */}
       <div className="footer-container">
         <div className="marquee-wrapper">
-          <div className="marquee-content">DENMO Project by Line Collective</div>
+          <div className="marquee-content">
+            Parametric lamp generation · Real-time overhang analysis · Retopology on export · Vase mode G-Code · Wireframe preview · By Line Collective
+          </div>
         </div>
         <div className="footer-logo">
-          <a href="https://www.facebook.com/mark.do2102/" target="_blank" rel="noreferrer"
-             style={{ color:'inherit', textDecoration:'none', marginRight:'16px', display:'flex', alignItems:'center', gap:'4px' }}>
-            FACEBOOK <ArrowUpRight size={14}/>
+          <a href="https://www.facebook.com/mark.do2102/" target="_blank" rel="noreferrer">
+            FACEBOOK <ArrowUpRight size={12}/>
           </a>
-          <span>DESIGN &amp; DEV BY US</span>
-          <div style={{ width:12, height:12, background:'var(--text-primary)' }}/>
-          <div style={{ width:12, height:12, background:'var(--text-secondary)' }}/>
+          <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+          <span>DEV BY US</span>
+          <div style={{ width:10, height:10, background:'var(--accent-hot)', flexShrink:0 }}/>
+          <div style={{ width:10, height:10, background:'var(--text-tertiary)', flexShrink:0 }}/>
         </div>
       </div>
 
@@ -1084,7 +1086,7 @@ export default function App() {
         aria-label="Interactive 3D Lamp Generator Viewport"
         role="img"
       >
-        <color attach="background" args={['#0a0a0a']} />
+        <color attach="background" args={['#050505']} />
         <Environment preset={isGlowing ? 'park' : styleParams.environment} background={false} />
 
         <ambientLight intensity={isGlowing ? styleParams.lightIntensity * 0.2 : styleParams.lightIntensity} />
