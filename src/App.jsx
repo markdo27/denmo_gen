@@ -917,26 +917,8 @@ export default function App() {
         {/* Header section */}
         <div className="sidebar-header">
           <div className="app-title">DENMO_PROJECT: v2</div>
-          <div className="app-subtitle">Parametric Lamp<br/>Generator & Printer</div>
+          <div className="app-subtitle">Parametric Lamp<br/>Generator &amp; Printer</div>
           {rdComputing && <div className="rd-status">● COMPUTING RD MAP…</div>}
-          <button
-            className="export-btn sidebar-tool-btn"
-            style={{ marginTop: 8 }}
-            onClick={() => { window.location.hash = '/lampifier'; }}
-            aria-label="Open Lamp-ifier — AI model hollowing and E27 hardware prep tool"
-          >
-            <div className="btn-text">→ LAMP-IFIER</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={14} aria-hidden="true" /></div>
-          </button>
-          <button
-            className="export-btn sidebar-tool-btn"
-            style={{ marginTop: 4 }}
-            onClick={() => { window.location.hash = '/gcode-editor'; }}
-            aria-label="Open G-Code Visual Editor"
-          >
-            <div className="btn-text">→ G-CODE EDITOR</div>
-            <div className="btn-icon-wrapper"><ArrowUpRight size={14} aria-hidden="true" /></div>
-          </button>
         </div>
 
         {/* Overhang warning panel — sits between header and divider */}
@@ -1042,6 +1024,14 @@ export default function App() {
             aria-label="Open Lamp-ifier tool"
           >
             <div className="btn-text">→ LAMP-IFIER</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
+          </button>
+          <button
+            className="export-btn sidebar-tool-btn"
+            onClick={() => { window.location.hash = '/gcode-editor'; }}
+            aria-label="Open G-Code Visual Editor"
+          >
+            <div className="btn-text">→ G-CODE EDITOR</div>
             <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
         </div>
