@@ -513,6 +513,23 @@ body {
 .wireframe-active .btn-text  { color: #00ff88; }
 .wireframe-active .btn-icon-wrapper { background: #00ff88; color: #000; }
 
+.wireframe-computing {
+  color: #ffcc00;
+  animation: rd-pulse 0.7s ease-in-out infinite;
+}
+
+/* Retopo button computing state: active button pulses yellow while preview runs */
+.retopo-btn.retopo-computing {
+  animation: retopo-btn-pulse 0.7s ease-in-out infinite;
+  border-color: #ffcc00 !important;
+  color: #ffcc00 !important;
+}
+
+@keyframes retopo-btn-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 /* ── Retopology quality selector ────────────────────────────────────── */
 .retopo-quality-row {
   display: flex;

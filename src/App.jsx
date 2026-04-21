@@ -190,14 +190,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
   return (
     <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
       {wireframe ? (
-        // Wireframe mode: solid ghost + wireframe overlay
-        <>
-          <meshBasicMaterial color="#0f1a14" transparent opacity={0.12} side={THREE.DoubleSide} depthWrite={false} />
-          <lineSegments>
-            <edgesGeometry attach="geometry" args={[geometry]} />
-            <lineBasicMaterial attach="material" color="#00ff88" transparent opacity={0.9} linewidth={1} />
-          </lineSegments>
-        </>
+        // Wireframe mode: ghost base (edges rendered separately outside this component)
+        <meshBasicMaterial color="#060d09" transparent opacity={0.10} side={THREE.DoubleSide} depthWrite={false} />
       ) : (
         <meshPhysicalMaterial
           {...materialProps}
@@ -207,6 +201,51 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
         />
       )}
     </mesh>
+  );
+}
+
+// ============================================================================
+// RETOPOLOGY WIREFRAME MESH  (separate canvas component for retopo preview)
+// ============================================================================
+function RetopologyWireframeMesh({ positions, indices, color = '#00ff88', opacity = 0.9 }) {
+  const geo = useMemo(() => {
+    if (!positions || !indices) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    g.setIndex(new THREE.Uint32BufferAttribute(indices, 1));
+    return g;
+  }, [positions, indices]);
+
+  if (!geo) return null;
+  return (
+    <lineSegments>
+      <edgesGeometry attach="geometry" args={[geo]} />
+      <lineBasicMaterial attach="material" color={color} transparent opacity={opacity} />
+    </lineSegments>
+  );
+}
+
+// ============================================================================
+// RAW LAMP WIREFRAME  (fallback / loading state wireframe using live geometry)
+// ============================================================================
+function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacity = 0.85 }) {
+  const geo = useMemo(() => {
+    return new THREE.LatheGeometry(
+      generateLampPoints(params, customProfileData),
+      params.radialSegments, 0, Math.PI * 2
+    );
+  }, [
+    params.height, params.bottomRadius, params.midRadius, params.topRadius,
+    params.thickness, params.verticalProfile, params.solidVaseMode,
+    params.closeTop, params.closeBottom, params.mirrorY,
+    params.verticalSegments, params.radialSegments, customProfileData,
+  ]);
+
+  return (
+    <lineSegments>
+      <edgesGeometry attach="geometry" args={[geo]} />
+      <lineBasicMaterial attach="material" color={color} transparent opacity={opacity} />
+    </lineSegments>
   );
 }
 
@@ -443,10 +482,14 @@ export default function App() {
   const [retopoStatus,     setRetopoStatus]       = useState(null);  // null | 'working' | report-obj
   const [showExportGate,   setShowExportGate]     = useState(false);
   const [pendingGcodeExport, setPendingGcodeExport] = useState(false);
+  const [retopoPreviewBufs,  setRetopoPreviewBufs]  = useState(null);   // { positions, indices } | null
+  const [retopoPreviewLoading, setRetopoPreviewLoading] = useState(false);
 
-  const meshRef       = useRef();
-  const rdWorkerRef   = useRef(null);
-  const rdDebounceRef = useRef(null);
+  const meshRef                = useRef();
+  const rdWorkerRef            = useRef(null);
+  const rdDebounceRef          = useRef(null);
+  const retopoPreviewWorkerRef = useRef(null);
+  const retopoPreviewDebounce  = useRef(null);
 
   // ── Mount persistent RD worker ─────────────────────────────────────────
   useEffect(() => {
@@ -463,8 +506,10 @@ export default function App() {
     return () => {
       rdWorkerRef.current?.terminate();
       clearTimeout(rdDebounceRef.current);
+      retopoPreviewWorkerRef.current?.terminate();
+      clearTimeout(retopoPreviewDebounce.current);
     };
-  }, []);
+  }, []);;
 
   // ── Controls ───────────────────────────────────────────────────────────
   const params = useControls('Lamp Shape', {
@@ -580,6 +625,75 @@ export default function App() {
     params.crossSection, params.mirrorX, params.mirrorZ,
     params.layerHeight, params.bedX, params.bedY,
     customProfileData, rdMap, voronoiMap,
+  ]);
+
+  // ── Retopo preview worker — live wireframe preview on quality change ──────
+  // Fires whenever wireframe is ON + a non-OFF quality is selected,
+  // and whenever any geometry-affecting parameter changes.
+  useEffect(() => {
+    clearTimeout(retopoPreviewDebounce.current);
+    retopoPreviewWorkerRef.current?.terminate();
+
+    if (!showWireframe || retopoQuality === 'OFF') {
+      setRetopoPreviewBufs(null);
+      setRetopoPreviewLoading(false);
+      return;
+    }
+
+    setRetopoPreviewLoading(true);
+
+    retopoPreviewDebounce.current = setTimeout(() => {
+      const geo = meshRef.current?.geometry;
+      if (!geo?.attributes?.position) { setRetopoPreviewLoading(false); return; }
+
+      const posAttr   = geo.attributes.position;
+      const positions = posAttr.array.slice();   // copy — transferred to worker
+      let   indices;
+      if (geo.index) {
+        indices = geo.index.array.slice();
+      } else {
+        indices = new Uint32Array(posAttr.count);
+        for (let i = 0; i < posAttr.count; i++) indices[i] = i;
+      }
+
+      const worker = new Worker(
+        new URL('./workers/retopologyWorker.js', import.meta.url),
+        { type: 'module' }
+      );
+      retopoPreviewWorkerRef.current = worker;
+
+      worker.postMessage(
+        { positions: new Float32Array(positions), indices: new Uint32Array(indices), quality: retopoQuality },
+        [positions.buffer, indices.buffer]
+      );
+
+      worker.onmessage = (e) => {
+        const { positions: cleanPos, indices: cleanIdx } = e.data;
+        setRetopoPreviewBufs({ positions: cleanPos, indices: cleanIdx });
+        setRetopoPreviewLoading(false);
+        worker.terminate();
+      };
+      worker.onerror = () => { setRetopoPreviewLoading(false); worker.terminate(); };
+    }, 350);  // 350 ms debounce — wait for param slider to settle
+
+    return () => {
+      clearTimeout(retopoPreviewDebounce.current);
+    };
+  }, [
+    showWireframe, retopoQuality,
+    // All geometry-affecting params:
+    params.height, params.bottomRadius, params.midRadius, params.topRadius,
+    params.thickness, params.verticalProfile, params.solidVaseMode,
+    params.closeTop, params.closeBottom, params.mirrorY,
+    params.verticalSegments, params.radialSegments,
+    params.twistAngle, params.radialRipples, params.radialRippleDepth,
+    params.verticalRipples, params.verticalRippleDepth,
+    params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
+    params.diamondFreq, params.diamondDepth,
+    params.noiseScale, params.noiseDepth,
+    params.rdDepth, params.voronoiDepth,
+    params.crossSection, params.mirrorX, params.mirrorZ,
+    rdMap, voronoiMap, customProfileData,
   ]);
 
   // ── Appearance controls ────────────────────────────────────────────────
@@ -857,7 +971,13 @@ export default function App() {
             aria-label="Toggle wireframe polygon mesh view"
             aria-pressed={showWireframe}
           >
-            <div className="btn-text"><Grid3x3 size={12} style={{marginRight:4}} />WIREFRAME</div>
+            <div className="btn-text">
+              <Grid3x3 size={12} style={{marginRight:4}} />
+              WIREFRAME
+              {showWireframe && retopoQuality !== 'OFF' && retopoPreviewLoading && (
+                <span className="wireframe-computing"> ●</span>
+              )}
+            </div>
             <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
         </div>
@@ -872,11 +992,12 @@ export default function App() {
             {['DRAFT', 'BALANCED', 'FINE', 'OFF'].map(q => (
               <button
                 key={q}
-                className={`retopo-btn${retopoQuality === q ? ' retopo-active' : ''}`}
+                className={`retopo-btn${retopoQuality === q ? ' retopo-active' : ''}${retopoQuality === q && retopoPreviewLoading && showWireframe ? ' retopo-computing' : ''}`}
                 onClick={() => setRetopoQuality(q)}
                 aria-pressed={retopoQuality === q}
               >
                 {q}
+                {retopoQuality === q && retopoPreviewLoading && showWireframe && ' ●'}
               </button>
             ))}
           </div>
@@ -985,6 +1106,28 @@ export default function App() {
               voronoiMap={voronoiMap}
               wireframe={showWireframe}
             />
+            {/* Wireframe edges — shown when wireframe mode is ON */}
+            {showWireframe && (
+              retopoPreviewBufs && retopoQuality !== 'OFF'
+                ? (
+                    // Retopo preview: clean post-decimation edges in bright green
+                    <RetopologyWireframeMesh
+                      positions={retopoPreviewBufs.positions}
+                      indices={retopoPreviewBufs.indices}
+                      color="#00ff88"
+                      opacity={0.9}
+                    />
+                  )
+                : (
+                    // Raw edges: dim grey while computing, or full colour when quality is OFF
+                    <RawLampWireframe
+                      params={params}
+                      customProfileData={customProfileData}
+                      color={retopoPreviewLoading ? '#555555' : '#00ff88'}
+                      opacity={retopoPreviewLoading ? 0.4 : 0.85}
+                    />
+                  )
+            )}
             {showOverlay && overhangReport && (
               <OverhangOverlayMesh
                 params={params}
