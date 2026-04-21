@@ -370,3 +370,258 @@ body {
   font-size: 14px;
   padding: 8px 8px;
 }
+
+/* ── Sub-labels ─────────────────────────────────────────────────────── */
+.sidebar-section-sublabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+/* ── Overhang Warning Panel ─────────────────────────────────────────── */
+.overhang-panel {
+  border: 1px solid;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.25s ease;
+}
+
+.overhang-panel.overhang-ok {
+  border-color: #00ff88;
+}
+.overhang-panel.overhang-caution {
+  border-color: #ffcc00;
+}
+.overhang-panel.overhang-critical,
+.overhang-panel.overhang-bed-overflow {
+  border-color: #ff3333;
+  animation: overhang-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes overhang-pulse {
+  0%, 100% { border-color: #ff3333; box-shadow: 0 0 0 0 #ff333333; }
+  50%       { border-color: #ff3333cc; box-shadow: 0 0 8px 1px #ff333355; }
+}
+
+.overhang-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overhang-panel.overhang-ok .overhang-header       { color: #00ff88; }
+.overhang-panel.overhang-caution .overhang-header  { color: #ffcc00; }
+.overhang-panel.overhang-critical .overhang-header,
+.overhang-panel.overhang-bed-overflow .overhang-header { color: #ff3333; }
+
+.overhang-icon { display: flex; align-items: center; flex-shrink: 0; }
+
+.overhang-title { flex: 1; }
+
+.overhang-angle {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.overhang-bed-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 8px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.bed-ok  { color: #00ff88; }
+.bed-err { color: #ff3333; font-weight: 700; }
+.bed-hint { color: #ff3333; opacity: 0.8; font-size: 9px; }
+
+.overhang-body {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.overhang-zones {
+  font-size: 9px;
+  color: #ff9944;
+  letter-spacing: 0.06em;
+  word-break: break-word;
+}
+
+.overhang-suggestions { display: flex; flex-direction: column; gap: 5px; }
+
+.overhang-suggestions-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+  margin-bottom: 2px;
+}
+
+.overhang-tip {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.tip-param  { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+.tip-arrow  { color: var(--text-secondary); }
+.tip-val    { color: #ffcc00; font-weight: 700; white-space: nowrap; }
+.tip-reason {
+  color: var(--text-secondary);
+  font-size: 8px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Overhang overlay toggle button ─────────────────────────────────── */
+.overlay-active { border-color: #00ff88 !important; }
+.overlay-active .btn-text  { color: #00ff88; }
+.overlay-active .btn-icon-wrapper { background: #00ff88; color: #000; }
+
+/* ── Retopology quality selector ────────────────────────────────────── */
+.retopo-quality-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.retopo-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text-secondary);
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.retopo-btn:hover {
+  border-color: rgba(255,255,255,0.5);
+  color: var(--text-primary);
+}
+
+.retopo-btn.retopo-active {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-color);
+}
+
+/* ── Retopo mini-report ──────────────────────────────────────────────── */
+.retopo-report {
+  font-size: 9px;
+  color: #00ff88;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 0;
+  animation: retopo-fadein 0.4s ease;
+  word-break: break-word;
+}
+
+@keyframes retopo-fadein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Export Gate Modal ───────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modal-in 0.15s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-box {
+  background: #0a0a0a;
+  border: 1px solid #ff3333;
+  padding: 32px;
+  max-width: 360px;
+  width: calc(100vw - 64px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modal-slide 0.2s ease;
+}
+
+@keyframes modal-slide {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-icon {
+  color: #ff3333;
+  display: flex;
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff3333;
+}
+
+.modal-body {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.modal-body strong { color: var(--text-primary); }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.modal-cancel  { flex: 1; border-color: rgba(255,255,255,0.3); }
+.modal-confirm { flex: 2; border-color: #ff3333; }
+.modal-confirm .btn-text  { color: #ff3333; }
+.modal-confirm .btn-icon-wrapper { background: #ff3333; }
+.modal-confirm:hover .btn-text        { background: #ff3333; color: #000; }
+.modal-confirm:hover .btn-icon-wrapper { background: #000; color: #ff3333; }

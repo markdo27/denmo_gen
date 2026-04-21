@@ -1,12 +1,13 @@
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Grid } from '@react-three/drei';
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, AlertTriangle, CheckCircle, XCircle, Layers } from 'lucide-react';
 import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
+import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
 import './index.css';
 
 // ============================================================================
@@ -265,15 +266,171 @@ function GCodeViewer({ params, customProfileData, rdMap, voronoiMap }) {
 }
 
 // ============================================================================
+// OVERHANG OVERLAY MESH  (vertex-colored, drawn on top of the lamp)
+// ============================================================================
+function OverhangOverlayMesh({ params, customProfileData, rdMap, voronoiMap, perLayerAngles }) {
+  const geometry = useMemo(() => {
+    if (!perLayerAngles) return null;
+    const geo = new THREE.LatheGeometry(
+      generateLampPoints(params, customProfileData),
+      params.radialSegments, 0, Math.PI * 2
+    );
+
+    const posAttr = geo.attributes.position;
+    const colors  = new Float32Array(posAttr.count * 3);
+    const vSegments = params.verticalSegments || 100;
+
+    for (let i = 0; i < posAttr.count; i++) {
+      const y    = posAttr.getY(i);
+      const t    = Math.max(0, Math.min(1, y / params.height));
+      const layerIdx = Math.min(perLayerAngles.length - 1, Math.floor(t * perLayerAngles.length));
+      const ang  = perLayerAngles[layerIdx];
+
+      let r, g, b;
+      if (ang > OVERHANG_CAUTION) {
+        // Critical — red
+        r = 1.0; g = 0.1; b = 0.1;
+      } else if (ang > OVERHANG_SAFE) {
+        // Caution — amber
+        r = 1.0; g = 0.75; b = 0.0;
+      } else {
+        // Safe — green
+        r = 0.1; g = 0.9; b = 0.45;
+      }
+      colors[i * 3]     = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    return geo;
+  }, [params, customProfileData, rdMap, voronoiMap, perLayerAngles]);
+
+  if (!geometry) return null;
+  return (
+    <mesh geometry={geometry}>
+      <meshBasicMaterial vertexColors transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
+    </mesh>
+  );
+}
+
+// ============================================================================
+// OVERHANG WARNING PANEL  (sidebar component)
+// ============================================================================
+function OverhangWarningPanel({ report }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!report) return null;
+
+  const { status, maxOverhangAngle, criticalHeights, suggestions,
+          bedFitsX, bedFitsY, diameterMm, heightMm } = report;
+
+  const isCritical = status === 'CRITICAL' || status === 'BED_OVERFLOW';
+  const isCaution  = status === 'CAUTION';
+  const isOK       = status === 'OK';
+
+  const panelClass = `overhang-panel overhang-${status.toLowerCase().replace('_', '-')}`;
+
+  return (
+    <div className={panelClass}>
+      {/* Header row */}
+      <button
+        className="overhang-header"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+      >
+        <span className="overhang-icon">
+          {isOK      && <CheckCircle  size={13} />}
+          {isCaution && <AlertTriangle size={13} />}
+          {isCritical && <XCircle     size={13} />}
+        </span>
+        <span className="overhang-title">
+          {isOK       && 'PRINT READY'}
+          {isCaution  && 'OVERHANG WARNING'}
+          {status === 'CRITICAL'    && 'CRITICAL OVERHANG'}
+          {status === 'BED_OVERFLOW' && 'BED OVERFLOW'}
+        </span>
+        <span className="overhang-angle">{maxOverhangAngle.toFixed(1)}°</span>
+      </button>
+
+      {/* Body — always show bed fit; expand for details */}
+      <div className="overhang-bed-row">
+        <span className={bedFitsX && bedFitsY ? 'bed-ok' : 'bed-err'}>
+          {bedFitsX && bedFitsY ? '✓' : '✕'} {diameterMm}mm × {heightMm}mm
+        </span>
+        {(!bedFitsX || !bedFitsY) && (
+          <span className="bed-hint">EXCEEDS BED — reduce radius</span>
+        )}
+      </div>
+
+      {(expanded || isCritical) && (isCaution || isCritical) && (
+        <div className="overhang-body">
+          {criticalHeights.length > 0 && (
+            <div className="overhang-zones">
+              ZONES: {criticalHeights.map(h => `${h}cm`).join(', ')}
+            </div>
+          )}
+          {suggestions.length > 0 && (
+            <div className="overhang-suggestions">
+              <div className="overhang-suggestions-title">FIX:</div>
+              {suggestions.map((s, i) => (
+                <div key={i} className="overhang-tip">
+                  <span className="tip-param">{s.param}</span>
+                  <span className="tip-arrow">→</span>
+                  <span className="tip-val">{s.suggested}</span>
+                  <span className="tip-reason">{s.reason}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// EXPORT GATE MODAL
+// ============================================================================
+function ExportGateModal({ onConfirm, onCancel, report }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Overhang warning">
+      <div className="modal-box">
+        <div className="modal-icon"><XCircle size={28} /></div>
+        <div className="modal-title">CRITICAL OVERHANG DETECTED</div>
+        <div className="modal-body">
+          Max overhang: <strong>{report.maxOverhangAngle}°</strong><br />
+          {report.criticalZoneCount} critical zone{report.criticalZoneCount !== 1 ? 's' : ''} found.
+          This print will likely fail or require support material.
+        </div>
+        <div className="modal-actions">
+          <button className="export-btn modal-cancel" onClick={onCancel}>
+            <div className="btn-text">CANCEL</div>
+            <div className="btn-icon-wrapper"><XCircle size={14} /></div>
+          </button>
+          <button className="export-btn modal-confirm" onClick={onConfirm}>
+            <div className="btn-text">EXPORT ANYWAY</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={14} /></div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN APP
 // ============================================================================
 export default function App() {
-  const [isGlowing,      setIsGlowing]     = useState(false);
-  const [viewMode,       setViewMode]       = useState('3D');
+  const [isGlowing,        setIsGlowing]       = useState(false);
+  const [viewMode,         setViewMode]         = useState('3D');
   const [customProfileData, setCustomProfileData] = useState([]);
-  const [rdMap,          setRdMap]          = useState(null);
-  const [rdComputing,    setRdComputing]    = useState(false);
-  const [gcodeExporting, setGcodeExporting] = useState(false);
+  const [rdMap,            setRdMap]             = useState(null);
+  const [rdComputing,      setRdComputing]       = useState(false);
+  const [gcodeExporting,   setGcodeExporting]    = useState(false);
+  const [showOverlay,      setShowOverlay]        = useState(true);
+  const [retopoQuality,    setRetopoQuality]      = useState('BALANCED');
+  const [retopoStatus,     setRetopoStatus]       = useState(null);  // null | 'working' | report-obj
+  const [showExportGate,   setShowExportGate]     = useState(false);
+  const [pendingGcodeExport, setPendingGcodeExport] = useState(false);
 
   const meshRef       = useRef();
   const rdWorkerRef   = useRef(null);
@@ -396,6 +553,23 @@ export default function App() {
     return computeVoronoi({ resolution: 256, numSeeds: params.voronoiSeeds, seed: params.voronoiSeedInt });
   }, [params.voronoiDepth, params.voronoiSeeds, params.voronoiSeedInt]);
 
+  // ── Overhang analysis — coarse scan, runs on every param change ─────────
+  const overhangReport = useMemo(() => {
+    return analyzeOverhangs(params, customProfileData, rdMap, voronoiMap);
+  }, [
+    params.height, params.bottomRadius, params.midRadius, params.topRadius,
+    params.verticalProfile, params.solidVaseMode, params.mirrorY,
+    params.twistAngle, params.radialRipples, params.radialRippleDepth,
+    params.verticalRipples, params.verticalRippleDepth,
+    params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
+    params.diamondFreq, params.diamondDepth,
+    params.noiseScale, params.noiseDepth,
+    params.rdDepth, params.voronoiDepth,
+    params.crossSection, params.mirrorX, params.mirrorZ,
+    params.layerHeight, params.bedX, params.bedY,
+    customProfileData, rdMap, voronoiMap,
+  ]);
+
   // ── Appearance controls ────────────────────────────────────────────────
   const styleParams = useControls('Appearance', {
     material:      { options: ['matte', 'metallic', 'glass'] },
@@ -445,24 +619,106 @@ export default function App() {
     img.src = URL.createObjectURL(file);
   };
 
-  // ── STL export ─────────────────────────────────────────────────────────
-  const exportSTL = () => {
+  // ── STL export (with optional retopology) ──────────────────────────────
+  const exportSTL = useCallback(() => {
     if (!meshRef.current) return;
-    const stl  = new STLExporter().parse(meshRef.current);
-    const link = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(new Blob([stl], { type: 'text/plain' })),
-      download: `lamp_${Date.now()}.stl`,
-      style: 'display:none',
-    });
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
-  // ── G-code export (async via worker) ──────────────────────────────────
-  const exportGCode = () => {
-    if (gcodeExporting) return;
+    if (retopoQuality === 'OFF') {
+      // Direct export, no retopology
+      const stl  = new STLExporter().parse(meshRef.current, { binary: false });
+      const link = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([stl], { type: 'text/plain' })),
+        download: `lamp_${Date.now()}.stl`,
+        style: 'display:none',
+      });
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setRetopoStatus({ skipped: true });
+      return;
+    }
+
+    // Extract raw buffers from the live Three.js mesh
+    const geo = meshRef.current.geometry;
+    if (!geo || !geo.attributes.position) return;
+
+    const posAttr = geo.attributes.position;
+    const positions = new Float32Array(posAttr.array);
+
+    let indices;
+    if (geo.index) {
+      indices = new Uint32Array(geo.index.array);
+    } else {
+      // Non-indexed geometry — build sequential indices
+      indices = new Uint32Array(posAttr.count);
+      for (let i = 0; i < posAttr.count; i++) indices[i] = i;
+    }
+
+    setRetopoStatus('working');
+
+    const worker = new Worker(
+      new URL('./workers/retopologyWorker.js', import.meta.url),
+      { type: 'module' }
+    );
+
+    worker.postMessage(
+      { positions, indices, quality: retopoQuality },
+      [positions.buffer, indices.buffer]
+    );
+
+    worker.onmessage = (e) => {
+      const { positions: cleanPos, indices: cleanIdx, report } = e.data;
+
+      // Build ASCII STL from cleaned buffers
+      let stl = 'solid lamp\n';
+      for (let fi = 0; fi < cleanIdx.length; fi += 3) {
+        const ia = cleanIdx[fi], ib = cleanIdx[fi+1], ic = cleanIdx[fi+2];
+        const ax = cleanPos[ia*3], ay = cleanPos[ia*3+1], az = cleanPos[ia*3+2];
+        const bx = cleanPos[ib*3], by = cleanPos[ib*3+1], bz = cleanPos[ib*3+2];
+        const cx = cleanPos[ic*3], cy = cleanPos[ic*3+1], cz = cleanPos[ic*3+2];
+
+        // Face normal
+        const nx = (by-ay)*(cz-az)-(bz-az)*(cy-ay);
+        const ny = (bz-az)*(cx-ax)-(bx-ax)*(cz-az);
+        const nz = (bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+        const nlen = Math.sqrt(nx*nx+ny*ny+nz*nz) || 1;
+
+        stl += `  facet normal ${(nx/nlen).toFixed(6)} ${(ny/nlen).toFixed(6)} ${(nz/nlen).toFixed(6)}\n`;
+        stl += `    outer loop\n`;
+        stl += `      vertex ${ax.toFixed(6)} ${ay.toFixed(6)} ${az.toFixed(6)}\n`;
+        stl += `      vertex ${bx.toFixed(6)} ${by.toFixed(6)} ${bz.toFixed(6)}\n`;
+        stl += `      vertex ${cx.toFixed(6)} ${cy.toFixed(6)} ${cz.toFixed(6)}\n`;
+        stl += `    endloop\n  endfacet\n`;
+      }
+      stl += 'endsolid lamp\n';
+
+      const link = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([stl], { type: 'text/plain' })),
+        download: `lamp_retopo_${Date.now()}.stl`,
+        style: 'display:none',
+      });
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      worker.terminate();
+      setRetopoStatus(report);
+      // Auto-clear mini-report after 5 s
+      setTimeout(() => setRetopoStatus(null), 5000);
+    };
+
+    worker.onerror = (err) => {
+      console.error('Retopology worker error:', err);
+      worker.terminate();
+      setRetopoStatus(null);
+    };
+  }, [meshRef, retopoQuality]);
+
+  // ── G-code export helper (actual send) ────────────────────────────────
+  const doExportGCode = useCallback(() => {
     setGcodeExporting(true);
+    setShowExportGate(false);
+    setPendingGcodeExport(false);
 
     const worker = new Worker(
       new URL('./workers/gcodeWorker.js', import.meta.url),
@@ -472,8 +728,8 @@ export default function App() {
     worker.postMessage({
       params: { ...params },
       customProfileData: [...customProfileData],
-      rdMap:        rdMap        ? rdMap.slice()        : null,
-      voronoiMap:   voronoiMap   ? voronoiMap.slice()   : null,
+      rdMap:      rdMap      ? rdMap.slice()      : null,
+      voronoiMap: voronoiMap ? voronoiMap.slice() : null,
     });
 
     worker.onmessage = (e) => {
@@ -494,10 +750,29 @@ export default function App() {
       worker.terminate();
       setGcodeExporting(false);
     };
-  };
+  }, [params, customProfileData, rdMap, voronoiMap]);
+
+  // ── G-code export — with overhang export gate ──────────────────────────
+  const exportGCode = useCallback(() => {
+    if (gcodeExporting) return;
+    if (overhangReport?.status === 'CRITICAL') {
+      setShowExportGate(true);   // show modal
+      setPendingGcodeExport(true);
+    } else {
+      doExportGCode();
+    }
+  }, [gcodeExporting, overhangReport, doExportGCode]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
+    <>
+    {showExportGate && (
+      <ExportGateModal
+        report={overhangReport}
+        onConfirm={doExportGCode}
+        onCancel={() => { setShowExportGate(false); setPendingGcodeExport(false); }}
+      />
+    )}
     <div className="app-container">
       {/* Hidden file input for custom profile */}
       <label
@@ -538,6 +813,9 @@ export default function App() {
           </button>
         </div>
 
+        {/* Overhang warning panel — sits between header and divider */}
+        <OverhangWarningPanel report={overhangReport} />
+
         {/* Divider */}
         <div className="sidebar-divider" />
 
@@ -552,14 +830,44 @@ export default function App() {
             <div className="btn-text">VIEWPORT: [ {viewMode} ]</div>
             <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
+          <button
+            className={`export-btn${showOverlay ? ' overlay-active' : ''}`}
+            onClick={() => setShowOverlay(v => !v)}
+            aria-label="Toggle overhang color overlay"
+            aria-pressed={showOverlay}
+          >
+            <div className="btn-text"><Layers size={12} style={{marginRight:4}} />OVERHANG MAP</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
+          </button>
         </div>
 
         {/* 02 — Export */}
         <div className="sidebar-section">
           <div className="sidebar-section-label">02_EXPORT</div>
+
+          {/* Retopology quality selector */}
+          <div className="sidebar-section-sublabel">RETOPO QUALITY</div>
+          <div className="retopo-quality-row">
+            {['DRAFT', 'BALANCED', 'FINE', 'OFF'].map(q => (
+              <button
+                key={q}
+                className={`retopo-btn${retopoQuality === q ? ' retopo-active' : ''}`}
+                onClick={() => setRetopoQuality(q)}
+                aria-pressed={retopoQuality === q}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
           <div className="sidebar-btn-row">
-            <button className="export-btn" onClick={exportSTL} aria-label="Export as STL">
-              <div className="btn-text">STL</div>
+            <button
+              className={`export-btn${retopoStatus === 'working' ? ' btn-computing' : ''}`}
+              onClick={exportSTL}
+              disabled={retopoStatus === 'working'}
+              aria-label="Export as STL with retopology"
+            >
+              <div className="btn-text">{retopoStatus === 'working' ? 'RETOPO…' : 'STL'}</div>
               <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
             <button
@@ -572,6 +880,15 @@ export default function App() {
               <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
             </button>
           </div>
+
+          {/* Retopo mini-report */}
+          {retopoStatus && retopoStatus !== 'working' && !retopoStatus.skipped && (
+            <div className="retopo-report">
+              ✓ {retopoStatus.originalTriangles?.toLocaleString()} → {retopoStatus.finalTriangles?.toLocaleString()} tris
+              {retopoStatus.seamFixed && '  |  seam fixed'}
+              {retopoStatus.manifoldOK ? '  |  manifold ✓' : '  |  ⚠ non-manifold'}
+            </div>
+          )}
         </div>
 
         {/* 03 — Tools */}
@@ -646,6 +963,15 @@ export default function App() {
               rdMap={rdMap}
               voronoiMap={voronoiMap}
             />
+            {showOverlay && overhangReport && (
+              <OverhangOverlayMesh
+                params={params}
+                customProfileData={customProfileData}
+                rdMap={rdMap}
+                voronoiMap={voronoiMap}
+                perLayerAngles={overhangReport.perLayerAngles}
+              />
+            )}
             <pointLight
               position={[0, params.height / 2, 0]}
               intensity={isGlowing ? 4.0 : 2.0}
@@ -678,5 +1004,6 @@ export default function App() {
         />
       </Canvas>
     </div>
+    </>
   );
 }
