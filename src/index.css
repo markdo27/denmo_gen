@@ -508,6 +508,11 @@ body {
 .overlay-active .btn-text  { color: #00ff88; }
 .overlay-active .btn-icon-wrapper { background: #00ff88; color: #000; }
 
+/* ── Wireframe toggle button ─────────────────────────────────────────── */
+.wireframe-active { border-color: #00ff88 !important; }
+.wireframe-active .btn-text  { color: #00ff88; }
+.wireframe-active .btn-icon-wrapper { background: #00ff88; color: #000; }
+
 /* ── Retopology quality selector ────────────────────────────────────── */
 .retopo-quality-row {
   display: flex;

@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Grid } from '@react-three/d
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { ArrowUpRight, AlertTriangle, CheckCircle, XCircle, Layers } from 'lucide-react';
+import { ArrowUpRight, AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
 import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
@@ -54,7 +54,7 @@ function generateLampPoints(params, customProfileData) {
 // ============================================================================
 // LAMP 3-D MESH
 // ============================================================================
-function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rdMap, voronoiMap }) {
+function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rdMap, voronoiMap, wireframe }) {
   // ── 2D profile (cheap, only profile-shape deps) ──────────────────────────
   const points = useMemo(() => generateLampPoints(params, customProfileData), [
     params.height, params.bottomRadius, params.midRadius, params.topRadius,
@@ -189,12 +189,23 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
 
   return (
     <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
-      <meshPhysicalMaterial
-        {...materialProps}
-        thickness={1}
-        iridescence={params.iridescence}
-        onBeforeCompile={onBeforeCompile}
-      />
+      {wireframe ? (
+        // Wireframe mode: solid ghost + wireframe overlay
+        <>
+          <meshBasicMaterial color="#0f1a14" transparent opacity={0.12} side={THREE.DoubleSide} depthWrite={false} />
+          <lineSegments>
+            <edgesGeometry attach="geometry" args={[geometry]} />
+            <lineBasicMaterial attach="material" color="#00ff88" transparent opacity={0.9} linewidth={1} />
+          </lineSegments>
+        </>
+      ) : (
+        <meshPhysicalMaterial
+          {...materialProps}
+          thickness={1}
+          iridescence={params.iridescence}
+          onBeforeCompile={onBeforeCompile}
+        />
+      )}
     </mesh>
   );
 }
@@ -427,6 +438,7 @@ export default function App() {
   const [rdComputing,      setRdComputing]       = useState(false);
   const [gcodeExporting,   setGcodeExporting]    = useState(false);
   const [showOverlay,      setShowOverlay]        = useState(true);
+  const [showWireframe,    setShowWireframe]      = useState(false);
   const [retopoQuality,    setRetopoQuality]      = useState('BALANCED');
   const [retopoStatus,     setRetopoStatus]       = useState(null);  // null | 'working' | report-obj
   const [showExportGate,   setShowExportGate]     = useState(false);
@@ -839,6 +851,15 @@ export default function App() {
             <div className="btn-text"><Layers size={12} style={{marginRight:4}} />OVERHANG MAP</div>
             <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
           </button>
+          <button
+            className={`export-btn${showWireframe ? ' wireframe-active' : ''}`}
+            onClick={() => setShowWireframe(v => !v)}
+            aria-label="Toggle wireframe polygon mesh view"
+            aria-pressed={showWireframe}
+          >
+            <div className="btn-text"><Grid3x3 size={12} style={{marginRight:4}} />WIREFRAME</div>
+            <div className="btn-icon-wrapper"><ArrowUpRight size={16} aria-hidden="true" /></div>
+          </button>
         </div>
 
         {/* 02 — Export */}
@@ -962,6 +983,7 @@ export default function App() {
               isGlowing={isGlowing}
               rdMap={rdMap}
               voronoiMap={voronoiMap}
+              wireframe={showWireframe}
             />
             {showOverlay && overhangReport && (
               <OverhangOverlayMesh
