@@ -168,9 +168,45 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
     r *= 1.0 + (Math.sign(Math.sin(sampleAngle * 12)) * 0.5 + 0.5) * 0.15 - 0.075;
   }
 
-  // ── Radial ripples (polar fold) ────────────────────────────────────────
-  if (params.radialRippleDepth > 0)
-    r += Math.sin(sampleAngle * params.radialRipples) * params.radialRippleDepth;
+  // ── Advanced Ribbing & 2-Tier Pedestal ───────────────────────────────
+  if (params.ribDepth > 0 || params.pedestalDepth > 0) {
+    // 2-Tier Pedestal Logic
+    const isPedestal = params.pedestalRatio > 0 && sampleTwistY <= params.pedestalRatio;
+    
+    // Choose parameters based on which tier we're on
+    const freq  = isPedestal ? params.pedestalRibs : params.ribFreq;
+    const depth = isPedestal ? params.pedestalDepth : params.ribDepth;
+    const prof  = isPedestal ? params.pedestalProfile : params.ribProfile;
+    
+    if (depth > 0) {
+      // Calculate phase [0, 1] within a single rib
+      const rawPhase = (sampleAngle * freq) / (Math.PI * 2) + (params.ribPhase || 0);
+      const phase = ((rawPhase % 1.0) + 1.0) % 1.0; 
+      
+      let ribVal = 0;
+      switch (prof) {
+        case 'sine':
+          ribVal = Math.sin(phase * Math.PI * 2);
+          break;
+        case 'sharp':
+          ribVal = Math.pow(Math.abs(Math.sin(phase * Math.PI)), params.ribTension || 0.4);
+          if (Math.cos(phase * Math.PI * 2) < 0) ribVal *= -1; // Make it alternate
+          break;
+        case 'pleat':
+          // Flat valley, sharp peak
+          ribVal = Math.pow(Math.abs(Math.sin(phase * Math.PI)), params.ribTension || 0.3);
+          break;
+        case 'sawtooth':
+          ribVal = (phase < 0.5 ? phase * 2 : 2 - phase * 2); // basic triangle
+          ribVal = Math.pow(ribVal, params.ribTension || 1.0);
+          break;
+        default:
+          ribVal = Math.sin(phase * Math.PI * 2);
+      }
+      
+      r += ribVal * depth;
+    }
+  }
 
   // ── Vertical ripples (height fold) ────────────────────────────────────
   if (params.verticalRippleDepth > 0)

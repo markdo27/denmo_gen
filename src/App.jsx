@@ -78,7 +78,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
 
     const needsPass =
       params.twistAngle !== 0       ||
-      params.radialRippleDepth > 0  || params.verticalRippleDepth > 0 ||
+      params.verticalRippleDepth > 0 ||
+      params.ribDepth > 0           || params.pedestalDepth > 0        ||
       params.bambooDepth > 0        || params.diamondDepth > 0         ||
       params.noiseDepth > 0         || params.rdDepth > 0              ||
       params.voronoiDepth > 0       || params.crossSection !== 'circle'||
@@ -112,7 +113,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
   }, [
     points,
     params.radialSegments, params.twistAngle, params.height,
-    params.radialRipples, params.radialRippleDepth,
+    params.ribFreq, params.ribDepth, params.ribProfile, params.ribTension, params.ribPhase,
+    params.pedestalRatio, params.pedestalRibs, params.pedestalDepth, params.pedestalProfile,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
     params.diamondFreq, params.diamondDepth,
@@ -527,15 +529,18 @@ export default function App() {
       verticalProfile: { options: ['vase', 'hourglass', 'teardrop', 'pagoda', 'column', 'cone', 'sphere', 'superformula', 'spherical-harmonic', 'super-ellipsoid', 'custom'] },
       customUpload: button(() => document.getElementById('hidden-file-input')?.click()),
       crossSection:    { options: ['circle', 'square', 'hexagon', 'triangle', 'star', 'gear'] },
-      solidVaseMode:   false,
-      closeTop:        false,
-      closeBottom:     false,
       height:          { value: 10,  min: 2,   max: 30,  step: 0.1 },
       bottomRadius:    { value: 5,   min: 1,   max: 15,  step: 0.1 },
       midRadius:       { value: 3,   min: 1,   max: 15,  step: 0.1 },
       topRadius:       { value: 4,   min: 1,   max: 15,  step: 0.1 },
       thickness:       { value: 0.5, min: 0.1, max: 2,   step: 0.05 },
     }, { collapsed: true }),
+
+    'Solid Vase Mode Geometry': folder({
+      solidVaseMode:   { value: false, label: 'Export as Solid' },
+      closeTop:        { value: false, label: 'Cap Top' },
+      closeBottom:     { value: false, label: 'Cap Bottom' },
+    }, { collapsed: false }),
 
     Resolution: folder({
       verticalSegments: { value: 100, min: 10, max: 800, step: 1,  label: 'Vertical Steps' },
@@ -549,6 +554,21 @@ export default function App() {
       bedY:        { value: 220,  min: 100,  max: 500,  step: 10,   label: 'Bed Y (mm)'         },
     }, { collapsed: true }),
 
+    'Advanced Ribbing': folder({
+      ribFreq:            { value: 0,   min: 0,   max: 128,         step: 1,    label: 'Rib Count'     },
+      ribDepth:           { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Rib Depth'     },
+      ribProfile:         { options: ['sine', 'sharp', 'pleat', 'sawtooth'] },
+      ribTension:         { value: 0.4, min: 0.1, max: 3.0,         step: 0.1,  label: 'Tension/Shape' },
+      ribPhase:           { value: 0,   min: 0,   max: 1,           step: 0.05, label: 'Phase Shift'   },
+    }, { collapsed: false }),
+
+    '2-Tier Pedestal': folder({
+      pedestalRatio:      { value: 0,   min: 0,   max: 1.0,         step: 0.01, label: 'Pedestal Height %' },
+      pedestalRibs:       { value: 24,  min: 0,   max: 128,         step: 1,    label: 'Pedestal Rib Count'},
+      pedestalDepth:      { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Pedestal Rib Depth'},
+      pedestalProfile:    { options: ['pleat', 'sharp', 'sine', 'sawtooth'] },
+    }, { collapsed: false }),
+
     Modifiers: folder({
       mirrorX:            false,
       mirrorY:            false,
@@ -556,8 +576,6 @@ export default function App() {
       twistAngle:         { value: 0,   min: 0,   max: Math.PI * 4, step: 0.1,  label: 'Twist'         },
       diamondFreq:        { value: 0,   min: 0,   max: 32,          step: 1,    label: 'Diamond Freq'  },
       diamondDepth:       { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Diamond Depth' },
-      radialRipples:      { value: 0,   min: 0,   max: 32,          step: 1,    label: 'Rib Freq'      },
-      radialRippleDepth:  { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Rib Depth'     },
       verticalRipples:    { value: 0,   min: 0,   max: 32,          step: 1,    label: 'Wave Freq'     },
       verticalRippleDepth:{ value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Wave Depth'    },
       bambooSteps:        { value: 0,   min: 0,   max: 20,          step: 1,    label: 'Bamboo Steps'  },
@@ -696,7 +714,7 @@ export default function App() {
   }, [
     params.height, params.bottomRadius, params.midRadius, params.topRadius,
     params.verticalProfile, params.solidVaseMode, params.mirrorY,
-    params.twistAngle, params.radialRipples, params.radialRippleDepth,
+    params.twistAngle, params.ribFreq, params.ribDepth, params.pedestalDepth, params.pedestalRatio,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
     params.diamondFreq, params.diamondDepth,
@@ -766,7 +784,7 @@ export default function App() {
     params.thickness, params.verticalProfile, params.solidVaseMode,
     params.closeTop, params.closeBottom, params.mirrorY,
     params.verticalSegments, params.radialSegments,
-    params.twistAngle, params.radialRipples, params.radialRippleDepth,
+    params.twistAngle, params.ribFreq, params.ribDepth, params.pedestalDepth, params.pedestalRatio,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
     params.diamondFreq, params.diamondDepth,
