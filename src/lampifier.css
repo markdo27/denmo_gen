@@ -446,6 +446,39 @@
   line-height: 1;
 }
 
+/* ─── Retopology Button ─── */
+.lf-btn-retopo {
+  background: transparent;
+  border-color: #00c8ff;
+  color: #00c8ff;
+  position: relative;
+  overflow: hidden;
+}
+.lf-btn-retopo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.08), rgba(157, 0, 255, 0.06));
+  opacity: 0;
+  transition: opacity var(--lf-transition);
+}
+.lf-btn-retopo:hover:not(:disabled)::before {
+  opacity: 1;
+}
+.lf-btn-retopo:hover:not(:disabled) {
+  border-color: #00e0ff;
+  color: #00e0ff;
+  background: transparent;
+  box-shadow: 0 0 16px rgba(0, 200, 255, 0.15), inset 0 0 24px rgba(0, 200, 255, 0.05);
+}
+.lf-btn-retopo:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.lf-btn-retopo .lf-btn-arrow {
+  color: #00c8ff;
+}
+
 /* ─── Safety Warning ─── */
 .lf-warning {
   background: var(--lf-warn-dim);

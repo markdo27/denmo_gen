@@ -7,6 +7,13 @@
  */
 
 import { fbm3 } from './algorithms/perlinNoise.js';
+import {
+  superFormulaProfile,
+  sphericalHarmonicProfile,
+  superEllipsoidProfile,
+  superFormulaModifier,
+  sphericalHarmonicModifier,
+} from './algorithms/superShapes.js';
 
 export const RD_RES  = 128;
 export const VOI_RES = 256;
@@ -44,6 +51,25 @@ export function getProfileRadius(evalT, params, customProfileData) {
   } else if (verticalProfile === 'pagoda') {
     const tierEval = (evalT * 4) % 1.0;
     r = bottomRadius * (1.0 - evalT) * (1.0 + tierEval * 0.5);
+    if (r < 0.05) r = 0.05;
+
+  } else if (verticalProfile === 'superformula') {
+    // SuperFormula profile: parametric curve with m/n1/n2/n3 control
+    const sfParams = params.sfProfile || { m: 0, n1: 1, n2: 1, n3: 1, a: 1, b: 1 };
+    r = superFormulaProfile(evalT, sfParams, bottomRadius);
+    if (r < 0.05) r = 0.05;
+
+  } else if (verticalProfile === 'spherical-harmonic') {
+    // Spherical Harmonics profile: organic blob silhouettes
+    const shParams = params.shProfile || [0, 0, 0, 0, 0, 0, 0, 0];
+    r = sphericalHarmonicProfile(evalT, shParams, bottomRadius);
+    if (r < 0.05) r = 0.05;
+
+  } else if (verticalProfile === 'super-ellipsoid') {
+    // Super Ellipsoid profile: rounded-cube / pillow silhouettes
+    const seN = params.seN ?? 1.0;
+    const seE = params.seE ?? 1.0;
+    r = superEllipsoidProfile(evalT, seN, seE, bottomRadius);
     if (r < 0.05) r = 0.05;
 
   } else if (verticalProfile === 'custom' && customProfileData && customProfileData.length > 0) {
@@ -194,6 +220,26 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
     const vU = (Math.round((sampleAngle / (Math.PI * 2)) * VOI_RES) + VOI_RES) % VOI_RES;
     const vV = Math.min(VOI_RES - 1, Math.round(sampleTwistY * (VOI_RES - 1)));
     r += voronoiMap[vV * VOI_RES + vU] * params.voronoiDepth;
+  }
+
+  // ── SuperFormula surface modifier (polar fold) ────────────────────────
+  if (params.superFormulaDepth > 0) {
+    const sfm = params.sfModifier || { m: 8, n1: 2, n2: 2, n3: 2 };
+    r += superFormulaModifier(
+      sampleAngle, sampleTwistY,
+      sfm.m, sfm.n1, sfm.n2, sfm.n3,
+      params.superFormulaDepth
+    );
+  }
+
+  // ── Spherical Harmonics surface modifier (polar + height fold) ────────
+  if (params.harmonicDepth > 0) {
+    const shm = params.shModifier || [2, 1, 2, 1, 2, 1, 2, 1];
+    r += sphericalHarmonicModifier(
+      sampleAngle, sampleTwistY,
+      shm,
+      params.harmonicDepth
+    );
   }
 
   return r;

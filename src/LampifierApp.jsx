@@ -14,6 +14,7 @@ import { STLLoader } from 'three-stdlib';
 import { OBJLoader } from 'three-stdlib';
 import { STLExporter } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { retopologise, getGeoStats } from './algorithms/retopology.js';
 import './lampifier.css';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -346,6 +347,8 @@ export default function LampifierApp() {
   const [processingMsg, setProcessingMsg] = useState('');
   const [error, setError]               = useState('');
   const [statusState, setStatusState]   = useState('idle'); // idle | ready | processing | error
+  const [retopoRes, setRetopoRes]       = useState(64);    // retopology grid resolution
+  const [geoStats, setGeoStats]         = useState(null);   // face/vertex count display
 
   // Clear error toast after 5s
   useEffect(() => {
@@ -370,6 +373,7 @@ export default function LampifierApp() {
       geo = scaleGeometryToHeight(geo, heightMm);
       setLoadedGeo(geo);
       setFileName(file.name);
+      setGeoStats(getGeoStats(geo));
       setStatusState('ready');
     } catch (err) {
       setError(`Load failed: ${err.message}`);
@@ -438,6 +442,54 @@ export default function LampifierApp() {
       setProcessingMsg('');
     }
   }, [loadedGeo]);
+
+  // ── Retopology + Export ────────────────────────────────────────────────────
+  const handleRetopoExport = useCallback(async () => {
+    if (!loadedGeo) return;
+
+    setIsProcessing(true);
+    setStatusState('processing');
+
+    try {
+      let geo = loadedGeo.clone();
+
+      // Step 1: E27 hardware cuts
+      setProcessingMsg('CUTTING E27 HOLES…');
+      await new Promise(r => setTimeout(r, 30));
+      geo = await applyE27Cuts(geo);
+      geo.computeBoundingBox();
+      centreGeometry(geo);
+
+      // Step 2: Retopology — voxel remesh via marching cubes
+      setProcessingMsg(`RETOPOLOGIZING (${retopoRes}³ grid)…`);
+      await new Promise(r => setTimeout(r, 30));
+      geo = retopologise(geo, retopoRes);
+
+      // Step 3: Export binary STL
+      setProcessingMsg('EXPORTING RETOPO STL…');
+      await new Promise(r => setTimeout(r, 30));
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
+      mesh.updateMatrixWorld(true);
+
+      const exporter = new STLExporter();
+      const stlBuffer = exporter.parse(mesh, { binary: true });
+      const blob = new Blob([stlBuffer], { type: 'application/octet-stream' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `lampified_retopo_${Date.now()}.stl`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setStatusState('ready');
+    } catch (err) {
+      setError(`Retopology export failed: ${err.message}`);
+      setStatusState('error');
+    } finally {
+      setIsProcessing(false);
+      setProcessingMsg('');
+    }
+  }, [loadedGeo, retopoRes]);
 
   // ─── Bounding-box info for display ───────────────────────────────────────
   const bbInfo = useMemo(() => {
@@ -617,9 +669,63 @@ export default function LampifierApp() {
             </div>
           </div>
 
-          {/* 5. Export */}
+          {/* 5. Retopology */}
           <div className="lf-section">
-            <div className="lf-section-header">05 — Export</div>
+            <div className="lf-section-header">05 — Retopology</div>
+
+            {/* Grid resolution slider */}
+            <div className="lf-field">
+              <div className="lf-label">
+                <span>Grid Resolution</span>
+                <span className="lf-label-value">{retopoRes}³</span>
+              </div>
+              <input
+                type="range"
+                className="lf-range"
+                min={32}
+                max={128}
+                step={4}
+                value={retopoRes}
+                onChange={(e) => setRetopoRes(Number(e.target.value))}
+                aria-label={`Retopology grid resolution: ${retopoRes}`}
+              />
+              <div className="lf-label" style={{ marginTop: 6, marginBottom: 0 }}>
+                <span style={{ color: 'var(--lf-text-3)' }}>32 (fast)</span>
+                <span style={{ color: 'var(--lf-text-3)' }}>128 (detailed)</span>
+              </div>
+            </div>
+
+            {/* Face count info */}
+            {geoStats && (
+              <div className="lf-cut-card" style={{ marginBottom: 12 }}>
+                <div className="lf-cut-dot top" aria-hidden="true" />
+                <div className="lf-cut-info">
+                  <div className="lf-cut-name">Current Mesh</div>
+                  <div className="lf-cut-spec">
+                    {geoStats.faces.toLocaleString()} faces · {geoStats.vertices.toLocaleString()} vertices
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Retopo export button */}
+            <button
+              className="lf-btn lf-btn-retopo"
+              onClick={handleRetopoExport}
+              disabled={!loadedGeo || isProcessing}
+              aria-label="Retopologize mesh then export as STL"
+            >
+              <span>Retopo + Export STL</span>
+              <span className="lf-btn-arrow" aria-hidden="true">↗</span>
+            </button>
+            <div className="lf-label" style={{ marginTop: 8, color: 'var(--lf-text-3)', fontSize: 9, textTransform: 'none', letterSpacing: '0.05em', lineHeight: 1.6 }}>
+              Voxel remesh → marching cubes → uniform topology. Fixes broken normals, non-manifold edges, and messy AI-gen geometry.
+            </div>
+          </div>
+
+          {/* 6. Export (Original) */}
+          <div className="lf-section">
+            <div className="lf-section-header">06 — Export (Original)</div>
             <button
               className="lf-btn primary"
               onClick={handleExport}
@@ -630,7 +736,7 @@ export default function LampifierApp() {
               <span className="lf-btn-arrow" aria-hidden="true">↗</span>
             </button>
             <div className="lf-label" style={{ marginTop: 8, color: 'var(--lf-text-3)', fontSize: 9, textTransform: 'none', letterSpacing: '0.05em', lineHeight: 1.6 }}>
-              Executes: E27 top cut (∅40mm) → cord channel (∅8mm) → binary STL download
+              Executes: E27 top cut (∅40mm) → cord channel (∅8mm) → binary STL download (original mesh topology)
             </div>
           </div>
 

@@ -8,6 +8,13 @@ import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-rea
 import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
+import {
+  SUPERFORMULA_PRESETS,
+  SUPERFORMULA_MODIFIER_PRESETS,
+  HARMONIC_PRESETS,
+  HARMONIC_MODIFIER_PRESETS,
+  SUPER_ELLIPSOID_PRESETS,
+} from './algorithms/superShapePresets.js';
 import './index.css';
 
 // ============================================================================
@@ -61,6 +68,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.thickness, params.verticalProfile, params.solidVaseMode,
     params.closeTop, params.closeBottom, params.mirrorY,
     params.verticalSegments, customProfileData,
+    // SuperShape profile deps
+    params.sfProfile, params.shProfile, params.seN, params.seE,
   ]);
 
   // ── Modified geometry (all surface-modifier deps) ────────────────────────
@@ -73,6 +82,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       params.bambooDepth > 0        || params.diamondDepth > 0         ||
       params.noiseDepth > 0         || params.rdDepth > 0              ||
       params.voronoiDepth > 0       || params.crossSection !== 'circle'||
+      params.superFormulaDepth > 0  || params.harmonicDepth > 0        ||
       params.mirrorX || params.mirrorY || params.mirrorZ;
 
     if (needsPass) {
@@ -108,6 +118,8 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.diamondFreq, params.diamondDepth,
     params.noiseScale, params.noiseDepth,
     params.rdDepth, params.voronoiDepth,
+    params.superFormulaDepth, params.harmonicDepth,
+    params.sfModifier, params.shModifier,
     params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ,
     rdMap, voronoiMap,
   ]);
@@ -512,7 +524,7 @@ export default function App() {
   // ── Controls ───────────────────────────────────────────────────────────
   const params = useControls('Lamp Shape', {
     Profile: folder({
-      verticalProfile: { options: ['vase', 'hourglass', 'teardrop', 'pagoda', 'column', 'cone', 'sphere', 'custom'] },
+      verticalProfile: { options: ['vase', 'hourglass', 'teardrop', 'pagoda', 'column', 'cone', 'sphere', 'superformula', 'spherical-harmonic', 'super-ellipsoid', 'custom'] },
       customUpload: button(() => document.getElementById('hidden-file-input')?.click()),
       crossSection:    { options: ['circle', 'square', 'hexagon', 'triangle', 'star', 'gear'] },
       solidVaseMode:   false,
@@ -555,6 +567,50 @@ export default function App() {
       noiseDepth:         { value: 0,   min: 0,   max: 3,           step: 0.05, label: 'Perlin Depth'  },
     }),
 
+    'SuperShape Modifiers': folder({
+      'SuperFormula Mod': folder({
+        superFormulaDepth:  { value: 0,   min: 0,   max: 3,    step: 0.05, label: 'SF Depth'     },
+        sfModM:             { value: 8,   min: 0,   max: 32,   step: 1,    label: 'SF Symmetry'  },
+        sfModN1:            { value: 2,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n1'        },
+        sfModN2:            { value: 2,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n2'        },
+        sfModN3:            { value: 2,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n3'        },
+      }),
+      'Harmonics Mod': folder({
+        harmonicDepth:      { value: 0,   min: 0,   max: 3,    step: 0.05, label: 'SH Depth'     },
+        shModM0:            { value: 2,   min: 0,   max: 7,    step: 1,    label: 'SH m0'        },
+        shModM1:            { value: 1,   min: 0,   max: 7,    step: 1,    label: 'SH m1'        },
+        shModM2:            { value: 2,   min: 0,   max: 7,    step: 1,    label: 'SH m2'        },
+        shModM3:            { value: 1,   min: 0,   max: 7,    step: 1,    label: 'SH m3'        },
+        shModM4:            { value: 2,   min: 0,   max: 7,    step: 1,    label: 'SH m4'        },
+        shModM5:            { value: 1,   min: 0,   max: 7,    step: 1,    label: 'SH m5'        },
+        shModM6:            { value: 2,   min: 0,   max: 7,    step: 1,    label: 'SH m6'        },
+        shModM7:            { value: 1,   min: 0,   max: 7,    step: 1,    label: 'SH m7'        },
+      }),
+    }, { collapsed: true }),
+
+    'SuperShape Profile': folder({
+      'SF Profile': folder({
+        sfProfM:            { value: 0,   min: 0,   max: 16,   step: 1,    label: 'SF m'         },
+        sfProfN1:           { value: 1,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n1'        },
+        sfProfN2:           { value: 1,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n2'        },
+        sfProfN3:           { value: 1,   min: 0.1, max: 100,  step: 0.1,  label: 'SF n3'        },
+      }),
+      'SH Profile': folder({
+        shProfM0:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m0'        },
+        shProfM1:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m1'        },
+        shProfM2:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m2'        },
+        shProfM3:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m3'        },
+        shProfM4:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m4'        },
+        shProfM5:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m5'        },
+        shProfM6:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m6'        },
+        shProfM7:           { value: 0,   min: 0,   max: 7,    step: 1,    label: 'SH m7'        },
+      }),
+      'SE Profile': folder({
+        seN:                { value: 1.0, min: 0.05, max: 4.0,  step: 0.05, label: 'SE North/South' },
+        seE:                { value: 1.0, min: 0.05, max: 4.0,  step: 0.05, label: 'SE East/West'   },
+      }),
+    }, { collapsed: true }),
+
     'Organic Algorithms': folder({
       'Reaction-Diffusion': folder({
         rdDepth:      { value: 0,    min: 0,     max: 3,    step: 0.05,  label: 'RD Depth'    },
@@ -587,6 +643,32 @@ export default function App() {
     }, { collapsed: true }),
   });
 
+  // ── Pack flat Leva sliders into composite SuperShape objects ────────────
+  //    lampMath.js expects sfProfile, shProfile, sfModifier, shModifier
+  //    as nested objects/arrays on the params object.
+  const enrichedParams = useMemo(() => ({
+    ...params,
+    // Profile composites (used by getProfileRadius)
+    sfProfile: {
+      m: params.sfProfM, n1: params.sfProfN1,
+      n2: params.sfProfN2, n3: params.sfProfN3,
+      a: 1, b: 1,
+    },
+    shProfile: [
+      params.shProfM0, params.shProfM1, params.shProfM2, params.shProfM3,
+      params.shProfM4, params.shProfM5, params.shProfM6, params.shProfM7,
+    ],
+    // Modifier composites (used by applyRadiusModifiers)
+    sfModifier: {
+      m: params.sfModM, n1: params.sfModN1,
+      n2: params.sfModN2, n3: params.sfModN3,
+    },
+    shModifier: [
+      params.shModM0, params.shModM1, params.shModM2, params.shModM3,
+      params.shModM4, params.shModM5, params.shModM6, params.shModM7,
+    ],
+  }), [params]);
+
   // ── Auto-recompute RD map — debounced 800 ms ───────────────────────────
   useEffect(() => {
     if (!rdWorkerRef.current || params.rdDepth === 0) return;
@@ -610,7 +692,7 @@ export default function App() {
 
   // ── Overhang analysis — coarse scan, runs on every param change ─────────
   const overhangReport = useMemo(() => {
-    return analyzeOverhangs(params, customProfileData, rdMap, voronoiMap);
+    return analyzeOverhangs(enrichedParams, customProfileData, rdMap, voronoiMap);
   }, [
     params.height, params.bottomRadius, params.midRadius, params.topRadius,
     params.verticalProfile, params.solidVaseMode, params.mirrorY,
@@ -850,7 +932,7 @@ export default function App() {
     );
 
     worker.postMessage({
-      params: { ...params },
+      params: { ...enrichedParams },
       customProfileData: [...customProfileData],
       rdMap:      rdMap      ? rdMap.slice()      : null,
       voronoiMap: voronoiMap ? voronoiMap.slice() : null,
@@ -874,7 +956,7 @@ export default function App() {
       worker.terminate();
       setGcodeExporting(false);
     };
-  }, [params, customProfileData, rdMap, voronoiMap]);
+  }, [enrichedParams, customProfileData, rdMap, voronoiMap]);
 
   // ── G-code export — with overhang export gate ──────────────────────────
   const exportGCode = useCallback(() => {
@@ -1080,7 +1162,7 @@ export default function App() {
         {viewMode === '3D' ? (
           <>
             <Lamp
-              params={params}
+              params={enrichedParams}
               customProfileData={customProfileData}
               materialProps={materialProps}
               meshRef={meshRef}
@@ -1104,7 +1186,7 @@ export default function App() {
                 : (
                     // Raw edges: dim grey while computing, or full colour when quality is OFF
                     <RawLampWireframe
-                      params={params}
+                      params={enrichedParams}
                       customProfileData={customProfileData}
                       color={retopoPreviewLoading ? '#555555' : '#00ff88'}
                       opacity={retopoPreviewLoading ? 0.4 : 0.85}
@@ -1113,7 +1195,7 @@ export default function App() {
             )}
             {showOverlay && overhangReport && (
               <OverhangOverlayMesh
-                params={params}
+                params={enrichedParams}
                 customProfileData={customProfileData}
                 rdMap={rdMap}
                 voronoiMap={voronoiMap}
@@ -1121,15 +1203,15 @@ export default function App() {
               />
             )}
             <pointLight
-              position={[0, params.height / 2, 0]}
+              position={[0, enrichedParams.height / 2, 0]}
               intensity={isGlowing ? 4.0 : 2.0}
               color={isGlowing ? '#fbbf24' : styleParams.color}
-              distance={params.height * 2.5}
+              distance={enrichedParams.height * 2.5}
             />
           </>
         ) : (
           <GCodeViewer
-            params={params}
+            params={enrichedParams}
             customProfileData={customProfileData}
             rdMap={rdMap}
             voronoiMap={voronoiMap}
@@ -1148,7 +1230,7 @@ export default function App() {
           minPolarAngle={0}
           maxPolarAngle={Math.PI / 2 + 0.1}
           autoRotate={false}
-          target={[0, params.height / 2, 0]}
+          target={[0, enrichedParams.height / 2, 0]}
         />
       </Canvas>
     </div>
