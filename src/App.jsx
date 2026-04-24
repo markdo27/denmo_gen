@@ -23,7 +23,7 @@ import './index.css';
 // LAMP PROFILE — 2D revolution points for LatheGeometry
 // ============================================================================
 function generateLampPoints(params, customProfileData) {
-  const { height, thickness, closeTop, closeBottom, solidVaseMode, mirrorY } = params;
+  const { height, thickness, closeTop, closeBottom, solidVaseMode, mirrorY, lighterHoleEnabled } = params;
   const vSegments = params.verticalSegments || 100;
   const outerPoints = [];
 
@@ -33,12 +33,18 @@ function generateLampPoints(params, customProfileData) {
     outerPoints.push(new THREE.Vector2(getSmoothedProfileRadius(evalT, params, customProfileData), t * height));
   }
 
-  const finalPoints = [];
-  if (solidVaseMode || closeBottom) finalPoints.push(new THREE.Vector2(0, 0));
-  for (const p of outerPoints) finalPoints.push(p.clone());
-  if (solidVaseMode || closeTop)   finalPoints.push(new THREE.Vector2(0, height));
+  // When lighter hole is enabled: solid body with OPEN top (lighter goes in from top)
+  // The LighterCavityMesh provides the top annular cap with the hole
+  const isSolidCup = lighterHoleEnabled;
 
-  if (!solidVaseMode) {
+  const finalPoints = [];
+  if (solidVaseMode || closeBottom || isSolidCup) finalPoints.push(new THREE.Vector2(0, 0));
+  for (const p of outerPoints) finalPoints.push(p.clone());
+  // Skip top cap when lighter hole is enabled — the top must stay open
+  if (!isSolidCup && (solidVaseMode || closeTop)) finalPoints.push(new THREE.Vector2(0, height));
+
+  // Skip inner wall when solid vase mode OR lighter case mode
+  if (!solidVaseMode && !isSolidCup) {
     if (closeTop) finalPoints.push(new THREE.Vector2(0, height - thickness));
     for (let i = outerPoints.length - 1; i >= 0; i--) {
       const p     = outerPoints[i];
@@ -958,17 +964,21 @@ export default function App() {
     ],
   }), [params]);
 
-  // ── Auto-set print-ready caps when lighter hole is enabled ─────────────
+  // ── Auto-set print-ready params when lighter hole is enabled ───────────
   useEffect(() => {
     if (params.lighterHoleEnabled) {
-      // Force solid body with closed bottom, open top (lighter goes in from top)
+      const dims = BIC_PRESETS[params.lighterHolePreset] || BIC_PRESETS.standard;
+      // Case height = lighter body - exposed top + floor thickness, in cm
+      const caseHeightCm = ((dims.bodyHeight - dims.topExposed) + params.lighterHoleFloor) / 10;
       setParams({
-        solidVaseMode: true,
-        closeBottom:   true,
-        closeTop:      false,
+        height:        Math.round(caseHeightCm * 10) / 10, // round to 0.1cm
+        solidVaseMode: false,   // handled by lighterHoleEnabled logic in generateLampPoints
+        closeBottom:   false,   // handled by lighterHoleEnabled logic
+        closeTop:      false,   // top stays open for lighter
+        verticalProfile: 'column', // cylindrical case shape
       });
     }
-  }, [params.lighterHoleEnabled]);
+  }, [params.lighterHoleEnabled, params.lighterHolePreset, params.lighterHoleFloor]);
 
   // ── Auto-recompute RD map — debounced 800 ms ───────────────────────────
   useEffect(() => {
