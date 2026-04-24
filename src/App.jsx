@@ -4,7 +4,7 @@ import { OrbitControls, Environment, ContactShadows, Grid } from '@react-three/d
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
-import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3, Download, Upload } from 'lucide-react';
 import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { loopSubdivide } from './algorithms/subdivision.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
@@ -643,7 +643,7 @@ export default function App() {
   }, []);;
 
   // ── Controls ───────────────────────────────────────────────────────────
-  const params = useControls('Lamp Shape', {
+  const [params, setParams] = useControls('Lamp Shape', () => ({
     Profile: folder({
       verticalProfile: { options: ['vase', 'hourglass', 'teardrop', 'pagoda', 'column', 'cone', 'sphere', 'superformula', 'spherical-harmonic', 'super-ellipsoid', 'custom'] },
       customUpload: button(() => document.getElementById('hidden-file-input')?.click()),
@@ -780,7 +780,16 @@ export default function App() {
       surfaceNoise:       { value: 0.5, min: 0, max: 2,  step: 0.05 },
       iridescence:        { value: 0.5, min: 0, max: 1,  step: 0.05 },
     }, { collapsed: true }),
-  });
+  }));
+
+  // ── Appearance controls ────────────────────────────────────────────────
+  const [styleParams, setStyleParams] = useControls('Appearance', () => ({
+    material:      { options: ['matte', 'metallic', 'glass'] },
+    color:         '#ff6200',
+    flatShading:   false,
+    environment:   { options: ['studio', 'city', 'warehouse', 'sunset', 'dawn', 'night'] },
+    lightIntensity:{ value: 1, min: 0, max: 5, step: 0.1 },
+  }), { collapsed: true });
 
   // ── Pack flat Leva sliders into composite SuperShape objects ────────────
   //    lampMath.js expects sfProfile, shProfile, sfModifier, shModifier
@@ -915,14 +924,7 @@ export default function App() {
     rdMap, voronoiMap, customProfileData,
   ]);
 
-  // ── Appearance controls ────────────────────────────────────────────────
-  const styleParams = useControls('Appearance', {
-    material:      { options: ['matte', 'metallic', 'glass'] },
-    color:         '#ff6200',
-    flatShading:   false,
-    environment:   { options: ['studio', 'city', 'warehouse', 'sunset', 'dawn', 'night'] },
-    lightIntensity:{ value: 1, min: 0, max: 5, step: 0.1 },
-  }, { collapsed: true });
+
 
   // Pre-compute material props so Lamp doesn't need styleParams access
   const materialProps = useMemo(() => ({
@@ -1151,6 +1153,42 @@ export default function App() {
     }
   }, [gcodeExporting, overhangReport, doExportGCode]);
 
+  // ── Preset Export / Import ──────────────────────────────────────────────
+  const exportPreset = useCallback(() => {
+    const presetData = {
+      version: 1,
+      params: params,
+      styleParams: styleParams
+    };
+    const json = JSON.stringify(presetData, null, 2);
+    const link = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([json], { type: 'application/json' })),
+      download: `lamp_preset_${Date.now()}.json`,
+      style: 'display:none',
+    });
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [params, styleParams]);
+
+  const handlePresetUpload = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (data.params) setParams(data.params);
+        if (data.styleParams) setStyleParams(data.styleParams);
+      } catch (err) {
+        console.error("Failed to parse preset file:", err);
+        alert("Invalid preset file.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset input
+  }, [setParams, setStyleParams]);
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <>
@@ -1289,6 +1327,15 @@ export default function App() {
           >
             <div className="btn-text">G-CODE EDITOR<span className="beta-badge">BETA</span></div>
           </button>
+          <div className="sidebar-btn-row" style={{ marginTop: '0.5rem' }}>
+            <button className="export-btn" onClick={exportPreset} aria-label="Export Preset">
+              <div className="btn-text"><Download size={14} style={{marginRight:6}} /> SAVE</div>
+            </button>
+            <button className="export-btn" onClick={() => document.getElementById('hidden-preset-input').click()} aria-label="Import Preset">
+              <div className="btn-text"><Upload size={14} style={{marginRight:6}} /> LOAD</div>
+            </button>
+            <input type="file" id="hidden-preset-input" style={{display:'none'}} accept=".json" onChange={handlePresetUpload} />
+          </div>
         </div>
       </div>
 
