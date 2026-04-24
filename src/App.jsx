@@ -401,10 +401,10 @@ function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacit
 // The top cap outer ring uses applyRadiusModifiers so it matches the actual
 // lamp cross-section shape (square, hex, circle, star, etc.)
 // ============================================================================
-function LighterCavityMesh({ params, rdMap, voronoiMap }) {
+function LighterCavityMesh({ params, rdMap, voronoiMap, customProfileData }) {
   const {
     lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
-    lighterHoleFloor, height, topRadius,
+    lighterHoleFloor, height, topRadius, bottomRadius, midRadius, mirrorY, profileSmoothing, verticalProfile
   } = params;
 
   const geometry = useMemo(() => {
@@ -472,9 +472,15 @@ function LighterCavityMesh({ params, rdMap, voronoiMap }) {
     const twistYNorm = 1.0; // top of lamp
 
     // Outer ring: computed from the lamp's modifier pipeline
+    // First, determine the actual 2D profile radius at the top (t=1.0)
+    // Note: mirrorY flips t, so if mirrorY is on, t=1.0 becomes t=0.0 in the base profile.
+    const t = 1.0;
+    const evalT = mirrorY ? 0.0 : 1.0;
+    const actualBaseR = getSmoothedProfileRadius(evalT, params, customProfileData);
+
     for (let i = 0; i < radialSegs; i++) {
       const angle = (i / radialSegs) * Math.PI * 2;
-      const baseR = topRadius; // base radius at the top
+      const baseR = actualBaseR; // use the true base radius for the top profile edge
       const r = applyRadiusModifiers(angle, twistYNorm, height, baseR, params, rdMap, voronoiMap);
 
       // Apply twist (same logic as in Lamp component)
@@ -514,13 +520,13 @@ function LighterCavityMesh({ params, rdMap, voronoiMap }) {
     return geo;
   }, [
     lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
-    lighterHoleFloor, height, topRadius, params.radialSegments,
+    lighterHoleFloor, height, topRadius, bottomRadius, midRadius, params.radialSegments,
     params.crossSection, params.twistAngle, params.mirrorY,
     params.ribFreq, params.ribDepth, params.ribProfile, params.ribPhase,
     params.diamondFreq, params.diamondDepth,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
-    rdMap, voronoiMap,
+    rdMap, voronoiMap, customProfileData, profileSmoothing, verticalProfile
   ]);
 
   if (!geometry) return null;
@@ -1583,7 +1589,7 @@ export default function App() {
             />
             {/* Lighter cavity preview */}
             {enrichedParams.lighterHoleEnabled && (
-              <LighterCavityMesh params={enrichedParams} rdMap={rdMap} voronoiMap={voronoiMap} />
+              <LighterCavityMesh params={enrichedParams} rdMap={rdMap} voronoiMap={voronoiMap} customProfileData={customProfileData} />
             )}
             {/* Wireframe edges — shown when wireframe mode is ON */}
             {showWireframe && (
