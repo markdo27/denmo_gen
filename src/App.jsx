@@ -62,7 +62,13 @@ function generateLampPoints(params, customProfileData) {
     if (closeBottom) finalPoints.push(new THREE.Vector2(0, thickness));
   }
 
-  if (finalPoints.length > 0) finalPoints.push(finalPoints[0].clone());
+  // Only close the 2D profile loop for standard hollow shells.
+  // For solid cups (lighter hole), closing the loop connects the top outer edge
+  // back to the bottom center, creating a massive unwanted conical inner surface.
+  // For solid vase mode, both ends are on the Y-axis so closing just creates degenerate triangles.
+  if (!isSolidCup && !solidVaseMode && finalPoints.length > 0) {
+    finalPoints.push(finalPoints[0].clone());
+  }
   return finalPoints;
 }
 
