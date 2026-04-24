@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Syne:wght@700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Syne:wght@700;800&display=swap');
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    DENMO DESIGN SYSTEM
@@ -28,7 +28,7 @@
   --crit-color:     #f53b3b;
 
   /* Type */
-  --font-mono:   'DM Mono', 'Courier New', monospace;
+  --font-mono:   'Space Mono', 'Courier New', monospace;
   --font-display:'Syne', sans-serif;
 
   font-family: var(--font-mono);
