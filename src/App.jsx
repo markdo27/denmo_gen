@@ -141,62 +141,89 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     // ── Subdivision surface pass ──────────────────────────────────────────
     const subdivLevel = params.subdivisionLevel || 0;
     if (subdivLevel > 0) {
-      // Extract positions and indices from the BufferGeometry
-      const srcGeo = geo.index ? geo : geo.toNonIndexed();
-      let srcPos = srcGeo.attributes.position.array;
-      let srcIdx;
+      const hasCaps = params.closeBottom || params.closeTop || params.solidVaseMode;
 
+      // Ensure indexed geometry
+      const srcGeo = geo.index ? geo : geo.toNonIndexed();
+      const srcPos = new Float32Array(srcGeo.attributes.position.array);
+      let srcIdx;
       if (srcGeo.index) {
         srcIdx = new Uint32Array(srcGeo.index.array);
       } else {
-        // Build sequential index for non-indexed geo
         srcIdx = new Uint32Array(srcPos.length / 3);
         for (let k = 0; k < srcIdx.length; k++) srcIdx[k] = k;
       }
 
-      const subdiv = loopSubdivide(
-        new Float32Array(srcPos),
-        srcIdx,
-        subdivLevel
-      );
-
-      geo.dispose();
-      const subdivGeo = new THREE.BufferGeometry();
-      subdivGeo.setAttribute('position', new THREE.Float32BufferAttribute(subdiv.positions, 3));
-      subdivGeo.setIndex(new THREE.Uint32BufferAttribute(subdiv.indices, 1));
-
-      // ── Post-subdivision cap closure ──────────────────────────────────
-      // Subdivision smooths cap vertices away from the flat plane.
-      // Re-flatten them after subdivision.
-      if (params.closeBottom || params.closeTop || params.solidVaseMode) {
-        const subdivPos = subdivGeo.attributes.position;
-        const capYEps   = params.height * 0.05;  // wider tolerance — subdiv spreads verts
-
-        for (let i = 0; i < subdivPos.count; i++) {
-          const x = subdivPos.getX(i);
-          const y = subdivPos.getY(i);
-          const z = subdivPos.getZ(i);
-          const r = Math.sqrt(x * x + z * z);
-
-          // Collapse center-axis vertices
-          if (r < 0.15) {
-            subdivPos.setXYZ(i, 0, y, 0);
-          }
-
-          // Flatten bottom cap vertices
-          if ((params.closeBottom || params.solidVaseMode) && y < capYEps) {
-            subdivPos.setY(i, 0);
-          }
-          // Flatten top cap vertices
-          if ((params.closeTop || params.solidVaseMode) && y > params.height - capYEps) {
-            subdivPos.setY(i, params.height);
-          }
-        }
-        subdivPos.needsUpdate = true;
+      if (!hasCaps) {
+        // No caps — subdivide everything
+        const subdiv = loopSubdivide(srcPos, srcIdx, subdivLevel);
+        geo.dispose();
+        const subdivGeo = new THREE.BufferGeometry();
+        subdivGeo.setAttribute('position', new THREE.Float32BufferAttribute(subdiv.positions, 3));
+        subdivGeo.setIndex(new THREE.Uint32BufferAttribute(subdiv.indices, 1));
+        subdivGeo.computeVertexNormals();
+        return subdivGeo;
       }
 
-      subdivGeo.computeVertexNormals();
-      return subdivGeo;
+      // ── Separate cap faces from wall faces ──────────────────────────────
+      // Cap face = any triangle with at least one vertex at r < threshold
+      const CAP_AXIS_R = 0.01;
+      const wallFaceIndices = [];
+      const capFaceIndices  = [];
+      const triCount = srcIdx.length / 3;
+
+      for (let f = 0; f < triCount; f++) {
+        const i0 = srcIdx[f * 3], i1 = srcIdx[f * 3 + 1], i2 = srcIdx[f * 3 + 2];
+        const r0 = Math.sqrt(srcPos[i0*3]*srcPos[i0*3] + srcPos[i0*3+2]*srcPos[i0*3+2]);
+        const r1 = Math.sqrt(srcPos[i1*3]*srcPos[i1*3] + srcPos[i1*3+2]*srcPos[i1*3+2]);
+        const r2 = Math.sqrt(srcPos[i2*3]*srcPos[i2*3] + srcPos[i2*3+2]*srcPos[i2*3+2]);
+
+        if (r0 < CAP_AXIS_R || r1 < CAP_AXIS_R || r2 < CAP_AXIS_R) {
+          capFaceIndices.push(i0, i1, i2);
+        } else {
+          wallFaceIndices.push(i0, i1, i2);
+        }
+      }
+
+      // ── Subdivide only wall faces ───────────────────────────────────────
+      // Remap wall vertices to a compact array
+      const wallVertMap = new Map(); // old index → new index
+      let nextWallIdx = 0;
+      for (const vi of wallFaceIndices) {
+        if (!wallVertMap.has(vi)) wallVertMap.set(vi, nextWallIdx++);
+      }
+
+      const wallPos = new Float32Array(wallVertMap.size * 3);
+      for (const [oldIdx, newIdx] of wallVertMap) {
+        wallPos[newIdx * 3]     = srcPos[oldIdx * 3];
+        wallPos[newIdx * 3 + 1] = srcPos[oldIdx * 3 + 1];
+        wallPos[newIdx * 3 + 2] = srcPos[oldIdx * 3 + 2];
+      }
+      const wallIdx = new Uint32Array(wallFaceIndices.map(vi => wallVertMap.get(vi)));
+
+      const subdiv = loopSubdivide(wallPos, wallIdx, subdivLevel);
+
+      // ── Merge subdivided wall + original caps ───────────────────────────
+      const finalVertCount = subdiv.positions.length / 3 + srcPos.length / 3;
+      const finalPos = new Float32Array(subdiv.positions.length + srcPos.length);
+      finalPos.set(subdiv.positions, 0);
+      // Append original positions (for cap faces)
+      finalPos.set(srcPos, subdiv.positions.length);
+
+      const capOffset = subdiv.positions.length / 3;  // vertex index offset for cap verts
+      const finalIdx = new Uint32Array(subdiv.indices.length + capFaceIndices.length);
+      finalIdx.set(subdiv.indices, 0);
+      // Remap cap face indices to offset into merged position array
+      for (let c = 0; c < capFaceIndices.length; c++) {
+        finalIdx[subdiv.indices.length + c] = capFaceIndices[c] + capOffset;
+      }
+
+      geo.dispose();
+      const finalGeo = new THREE.BufferGeometry();
+      finalGeo.setAttribute('position', new THREE.Float32BufferAttribute(finalPos, 3));
+      finalGeo.setIndex(new THREE.Uint32BufferAttribute(finalIdx, 1));
+      finalGeo.computeVertexNormals();
+      return finalGeo;
     }
 
     return geo;
