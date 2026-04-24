@@ -81,6 +81,41 @@ export function getProfileRadius(evalT, params, customProfileData) {
 }
 
 // ---------------------------------------------------------------------------
+// Smoothed profile radius — applies a 1D Gaussian blur to the raw profile
+// curve, rounding out any sharp creases or discontinuities.
+//
+// profileSmoothing ∈ [0, 1]:  0 = bypass (raw profile),  1 = heavy smoothing
+//
+// Works by sampling getProfileRadius at several nearby evalT values weighted
+// by a Gaussian kernel.  The kernel width (σ) scales with the smoothing
+// parameter so the user gets a natural-feeling slider.
+// ---------------------------------------------------------------------------
+const SMOOTH_SAMPLES = 9;   // must be odd
+const SMOOTH_HALF    = (SMOOTH_SAMPLES - 1) / 2;
+
+export function getSmoothedProfileRadius(evalT, params, customProfileData) {
+  const smoothing = params.profileSmoothing ?? 0;
+  if (smoothing <= 0) return getProfileRadius(evalT, params, customProfileData);
+
+  // σ ranges from 0.005 (barely visible) to 0.08 (heavy blur)
+  const sigma  = 0.005 + smoothing * 0.075;
+  const inv2s2 = 1.0 / (2.0 * sigma * sigma);
+
+  let weightSum = 0;
+  let radiusSum = 0;
+
+  for (let k = -SMOOTH_HALF; k <= SMOOTH_HALF; k++) {
+    const offset = (k / SMOOTH_HALF) * sigma * 3.0;   // sample ±3σ
+    const sampleT = Math.max(0, Math.min(1, evalT + offset));
+    const w = Math.exp(-(offset * offset) * inv2s2);
+    radiusSum += getProfileRadius(sampleT, params, customProfileData) * w;
+    weightSum += w;
+  }
+
+  return radiusSum / weightSum;
+}
+
+// ---------------------------------------------------------------------------
 // Radius modifiers — applies all surface-perturbation algorithms in order.
 //
 // Mirror symmetry is implemented using TWO parallel strategies:

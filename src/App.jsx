@@ -5,7 +5,7 @@ import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
-import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
+import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
 import {
@@ -28,7 +28,7 @@ function generateLampPoints(params, customProfileData) {
   for (let i = 0; i <= vSegments; i++) {
     const t     = i / vSegments;
     const evalT = mirrorY && t > 0.5 ? 1.0 - t : t;
-    outerPoints.push(new THREE.Vector2(getProfileRadius(evalT, params, customProfileData), t * height));
+    outerPoints.push(new THREE.Vector2(getSmoothedProfileRadius(evalT, params, customProfileData), t * height));
   }
 
   const finalPoints = [];
@@ -280,14 +280,14 @@ function GCodeViewer({ params, customProfileData, rdMap, voronoiMap }) {
       const t      = i / segments;
       const py     = t * params.height;
       const evalT  = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
-      const baseR  = getProfileRadius(evalT, params, customProfileData);
+      const baseR  = getSmoothedProfileRadius(evalT, params, customProfileData);
 
       // Non-planar slope for preview
       let dR_dT = 0;
       if (params.nonPlanar && params.nonPlanarAmplitude > 0) {
         const dt2    = 0.02;
-        const rPlus  = getProfileRadius(Math.min(1, evalT + dt2), params, customProfileData);
-        const rMinus = getProfileRadius(Math.max(0, evalT - dt2), params, customProfileData);
+        const rPlus  = getSmoothedProfileRadius(Math.min(1, evalT + dt2), params, customProfileData);
+        const rMinus = getSmoothedProfileRadius(Math.max(0, evalT - dt2), params, customProfileData);
         dR_dT = (rPlus - rMinus) / (dt2 * 2);
       }
 
@@ -534,6 +534,7 @@ export default function App() {
       midRadius:       { value: 3,   min: 1,   max: 15,  step: 0.1 },
       topRadius:       { value: 4,   min: 1,   max: 15,  step: 0.1 },
       thickness:       { value: 0.5, min: 0.1, max: 2,   step: 0.05 },
+      profileSmoothing: { value: 0, min: 0, max: 1, step: 0.01, label: 'Profile Smoothing' },
     }, { collapsed: true }),
 
     'Solid Vase Mode Geometry': folder({

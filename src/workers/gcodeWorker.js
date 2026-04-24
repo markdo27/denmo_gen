@@ -7,7 +7,7 @@
  * Running this off the main thread means the UI never freezes even for
  * very high-segment prints that produce millions of G-code lines.
  */
-import { getProfileRadius, applyRadiusModifiers } from '../lampMath.js';
+import { getSmoothedProfileRadius, applyRadiusModifiers } from '../lampMath.js';
 
 self.onmessage = (e) => {
   const { params, customProfileData, rdMap, voronoiMap } = e.data;
@@ -47,7 +47,7 @@ function generateGCode(params, customProfileData, rdMap, voronoiMap) {
     const t      = i / segments;
     const py     = t * params.height;
     const evalT  = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
-    const baseR  = getProfileRadius(evalT, params, customProfileData);
+    const baseR  = getSmoothedProfileRadius(evalT, params, customProfileData);
 
     // Dense-band feed / extrusion decision
     const inDense  = t >= params.denseBandStart && t <= params.denseBandEnd;
@@ -58,8 +58,8 @@ function generateGCode(params, customProfileData, rdMap, voronoiMap) {
     let dR_dT = 0;
     if (params.nonPlanar && params.nonPlanarAmplitude > 0) {
       const dt2  = 0.02;
-      const rPlus  = getProfileRadius(Math.min(1, evalT + dt2), params, customProfileData);
-      const rMinus = getProfileRadius(Math.max(0, evalT - dt2), params, customProfileData);
+      const rPlus  = getSmoothedProfileRadius(Math.min(1, evalT + dt2), params, customProfileData);
+      const rMinus = getSmoothedProfileRadius(Math.max(0, evalT - dt2), params, customProfileData);
       dR_dT = (rPlus - rMinus) / (dt2 * 2);
     }
 

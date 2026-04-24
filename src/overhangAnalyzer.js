@@ -9,7 +9,7 @@
  * No React, no Three.js — safe to call inside useMemo.
  */
 
-import { getProfileRadius, applyRadiusModifiers } from './lampMath.js';
+import { getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
 
 // ─── Thresholds (degrees) ────────────────────────────────────────────────────
 export const OVERHANG_SAFE     = 40;   // ≤ 40° → OK for almost all materials
@@ -66,8 +66,8 @@ export function analyzeOverhangs(params, customProfileData, rdMap, voronoiMap) {
     const evalT0 = (params.mirrorY && t0 > 0.5) ? 1 - t0 : t0;
     const evalT1 = (params.mirrorY && t1 > 0.5) ? 1 - t1 : t1;
 
-    const baseR0 = getProfileRadius(evalT0, params, customProfileData);
-    const baseR1 = getProfileRadius(evalT1, params, customProfileData);
+    const baseR0 = getSmoothedProfileRadius(evalT0, params, customProfileData);
+    const baseR1 = getSmoothedProfileRadius(evalT1, params, customProfileData);
 
     let worstAngleAtLayer = 0;
 
