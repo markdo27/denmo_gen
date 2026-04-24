@@ -90,13 +90,21 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     if (needsPass) {
       const posAttr = geo.attributes.position;
       const vtx     = new THREE.Vector3();
+      const CAP_R_THRESH = 0.02; // vertices closer to axis than this are cap centers
 
       for (let i = 0; i < posAttr.count; i++) {
         vtx.fromBufferAttribute(posAttr, i);
 
+        const baseR = Math.sqrt(vtx.x * vtx.x + vtx.z * vtx.z);
+
+        // ── Skip cap-center vertices: keep them on the exact center axis ──
+        if (baseR < CAP_R_THRESH) {
+          posAttr.setXYZ(i, 0, vtx.y, 0);
+          continue;
+        }
+
         // Raw cylindrical angle — applyRadiusModifiers handles all mirror folding
         const rawAngle   = Math.atan2(vtx.z, vtx.x);
-        const baseR      = Math.sqrt(vtx.x * vtx.x + vtx.z * vtx.z);
         const twistYNorm = vtx.y / params.height;
 
         const r = applyRadiusModifiers(rawAngle, twistYNorm, vtx.y, baseR, params, rdMap, voronoiMap);
@@ -107,6 +115,48 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
 
         posAttr.setXYZ(i, r * Math.cos(finalAngle), vtx.y, r * Math.sin(finalAngle));
       }
+
+      // ── Flatten cap surfaces ────────────────────────────────────────────
+      // Cap fan triangles connect a center vertex (r≈0) to edge vertices.
+      // Force all cap-region vertices to the exact cap plane Y so the
+      // surface is perfectly flat, not a pinwheel following ribs/twist.
+      if (params.closeBottom || params.closeTop || params.solidVaseMode) {
+        const capBottomY = 0;
+        const capTopY    = params.height;
+        const capInnerBottomY = params.thickness;
+        const capInnerTopY    = params.height - params.thickness;
+        const yEps = params.height * 0.005; // tolerance for cap detection
+
+        for (let i = 0; i < posAttr.count; i++) {
+          const y = posAttr.getY(i);
+          const x = posAttr.getX(i);
+          const z = posAttr.getZ(i);
+          const r = Math.sqrt(x * x + z * z);
+
+          // Only flatten vertices that are BETWEEN center and first wall ring
+          // i.e. very small radius vertices that are part of the cap fan
+          if (r < CAP_R_THRESH) {
+            // Already handled above — center vertices are at (0, y, 0)
+            continue;
+          }
+
+          // For cap edge vertices: force Y to exact cap plane
+          if ((params.closeBottom || params.solidVaseMode) && Math.abs(y - capBottomY) < yEps) {
+            posAttr.setY(i, capBottomY);
+          }
+          if ((params.closeTop || params.solidVaseMode) && Math.abs(y - capTopY) < yEps) {
+            posAttr.setY(i, capTopY);
+          }
+          // Inner caps (non-solid mode)
+          if (!params.solidVaseMode && params.closeBottom && Math.abs(y - capInnerBottomY) < yEps && r < params.bottomRadius * 0.5) {
+            posAttr.setY(i, capInnerBottomY);
+          }
+          if (!params.solidVaseMode && params.closeTop && Math.abs(y - capInnerTopY) < yEps && r < params.topRadius * 0.5) {
+            posAttr.setY(i, capInnerTopY);
+          }
+        }
+      }
+
       geo.computeVertexNormals();
     }
 
