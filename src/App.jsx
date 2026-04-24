@@ -33,18 +33,18 @@ function generateLampPoints(params, customProfileData) {
   }
 
   const finalPoints = [];
-  if (solidVaseMode || closeBottom) finalPoints.push(new THREE.Vector2(0.0001, 0));
+  if (solidVaseMode || closeBottom) finalPoints.push(new THREE.Vector2(0, 0));
   for (const p of outerPoints) finalPoints.push(p.clone());
-  if (solidVaseMode || closeTop)   finalPoints.push(new THREE.Vector2(0.0001, height));
+  if (solidVaseMode || closeTop)   finalPoints.push(new THREE.Vector2(0, height));
 
   if (!solidVaseMode) {
-    if (closeTop) finalPoints.push(new THREE.Vector2(0.0001, height - thickness));
+    if (closeTop) finalPoints.push(new THREE.Vector2(0, height - thickness));
     for (let i = outerPoints.length - 1; i >= 0; i--) {
       const p     = outerPoints[i];
       let   y     = p.y;
       if (closeTop    && y > height - thickness) y = height - thickness;
       if (closeBottom && y < thickness)          y = thickness;
-      const rInner = Math.max(0.0001, p.x - thickness);
+      const rInner = Math.max(0, p.x - thickness);
       const next   = new THREE.Vector2(rInner, y);
       if (finalPoints.length > 0) {
         const last = finalPoints[finalPoints.length - 1];
@@ -52,7 +52,7 @@ function generateLampPoints(params, customProfileData) {
       }
       finalPoints.push(next);
     }
-    if (closeBottom) finalPoints.push(new THREE.Vector2(0.0001, thickness));
+    if (closeBottom) finalPoints.push(new THREE.Vector2(0, thickness));
   }
 
   if (finalPoints.length > 0) finalPoints.push(finalPoints[0].clone());
@@ -90,7 +90,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     if (needsPass) {
       const posAttr = geo.attributes.position;
       const vtx     = new THREE.Vector3();
-      const CAP_R_THRESH = 0.02; // vertices closer to axis than this are cap centers
+      const CAP_R_THRESH = 0.01;
 
       for (let i = 0; i < posAttr.count; i++) {
         vtx.fromBufferAttribute(posAttr, i);
@@ -115,48 +115,26 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
 
         posAttr.setXYZ(i, r * Math.cos(finalAngle), vtx.y, r * Math.sin(finalAngle));
       }
+      geo.computeVertexNormals();
+    }
 
-      // ── Flatten cap surfaces ────────────────────────────────────────────
-      // Cap fan triangles connect a center vertex (r≈0) to edge vertices.
-      // Force all cap-region vertices to the exact cap plane Y so the
-      // surface is perfectly flat, not a pinwheel following ribs/twist.
-      if (params.closeBottom || params.closeTop || params.solidVaseMode) {
-        const capBottomY = 0;
-        const capTopY    = params.height;
-        const capInnerBottomY = params.thickness;
-        const capInnerTopY    = params.height - params.thickness;
-        const yEps = params.height * 0.005; // tolerance for cap detection
+    // ── Cap closure pass (runs always, outside needsPass) ────────────────
+    // Ensures cap center vertices converge to exact axis and caps are flat.
+    if (params.closeBottom || params.closeTop || params.solidVaseMode) {
+      const posAttr = geo.attributes.position;
+      const rSeg    = params.radialSegments + 1;  // verts per ring in LatheGeometry
 
-        for (let i = 0; i < posAttr.count; i++) {
-          const y = posAttr.getY(i);
-          const x = posAttr.getX(i);
-          const z = posAttr.getZ(i);
-          const r = Math.sqrt(x * x + z * z);
-
-          // Only flatten vertices that are BETWEEN center and first wall ring
-          // i.e. very small radius vertices that are part of the cap fan
-          if (r < CAP_R_THRESH) {
-            // Already handled above — center vertices are at (0, y, 0)
-            continue;
-          }
-
-          // For cap edge vertices: force Y to exact cap plane
-          if ((params.closeBottom || params.solidVaseMode) && Math.abs(y - capBottomY) < yEps) {
-            posAttr.setY(i, capBottomY);
-          }
-          if ((params.closeTop || params.solidVaseMode) && Math.abs(y - capTopY) < yEps) {
-            posAttr.setY(i, capTopY);
-          }
-          // Inner caps (non-solid mode)
-          if (!params.solidVaseMode && params.closeBottom && Math.abs(y - capInnerBottomY) < yEps && r < params.bottomRadius * 0.5) {
-            posAttr.setY(i, capInnerBottomY);
-          }
-          if (!params.solidVaseMode && params.closeTop && Math.abs(y - capInnerTopY) < yEps && r < params.topRadius * 0.5) {
-            posAttr.setY(i, capInnerTopY);
-          }
+      // Force ALL center-axis ring vertices to (0, y, 0).
+      // These come from profile points with r=0.
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const z = posAttr.getZ(i);
+        const r = Math.sqrt(x * x + z * z);
+        if (r < 0.01) {
+          posAttr.setXYZ(i, 0, posAttr.getY(i), 0);
         }
       }
-
+      posAttr.needsUpdate = true;
       geo.computeVertexNormals();
     }
 
@@ -291,6 +269,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       ) : (
         <meshPhysicalMaterial
           {...materialProps}
+          side={THREE.DoubleSide}
           thickness={1}
           iridescence={params.iridescence}
           onBeforeCompile={onBeforeCompile}
