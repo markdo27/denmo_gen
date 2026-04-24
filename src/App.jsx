@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3, Download, Upload } from 'lucide-react';
 import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
+import { buildLighterCavityGeometry, BIC_PRESETS } from '../ribbed-lamp-studio/lib/geometry/lighterHole.js';
 import { loopSubdivide } from './algorithms/subdivision.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
@@ -379,6 +380,61 @@ function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacit
       <edgesGeometry attach="geometry" args={[geo]} />
       <lineBasicMaterial attach="material" color={color} transparent opacity={opacity} />
     </lineSegments>
+  );
+}
+
+// ============================================================================
+// LIGHTER CAVITY MESH  (translucent preview of the lighter hole)
+// ============================================================================
+function LighterCavityMesh({ params }) {
+  const {
+    lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
+    lighterHoleFloor, height,
+  } = params;
+
+  const geometry = useMemo(() => {
+    if (!lighterHoleEnabled) return null;
+    const dims = BIC_PRESETS[lighterHolePreset] || BIC_PRESETS.standard;
+    const cavityDepth = Math.min(
+      dims.bodyHeight - dims.topExposed,
+      height * 10 - lighterHoleFloor  // height is in cm, cavity in mm
+    );
+    if (cavityDepth <= 0) return null;
+
+    const geo = buildLighterCavityGeometry({
+      preset:    lighterHolePreset,
+      tolerance: lighterHoleTolerance,
+      caseDepth: cavityDepth,
+      verticalSteps: 32,
+    });
+
+    // Scale from mm to cm (the main app works in cm)
+    const scale = 0.1;
+    const posAttr = geo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      posAttr.setX(i, posAttr.getX(i) * scale);
+      posAttr.setY(i, posAttr.getY(i) * scale + lighterHoleFloor * scale);
+      posAttr.setZ(i, posAttr.getZ(i) * scale);
+    }
+    posAttr.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+  }, [lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance, lighterHoleFloor, height]);
+
+  if (!geometry) return null;
+
+  return (
+    <mesh geometry={geometry}>
+      <meshPhysicalMaterial
+        color="#f59e0b"
+        transparent
+        opacity={0.4}
+        metalness={0}
+        roughness={0.8}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
   );
 }
 
@@ -774,6 +830,13 @@ export default function App() {
       nonPlanar:          { value: false,                                  label: 'Non-Planar Z'         },
       nonPlanarAmplitude: { value: 0.5,  min: 0,   max: 3,    step: 0.05, label: 'NP Amplitude'         },
     }, { collapsed: true }),
+
+    'Lighter Hole': folder({
+      lighterHoleEnabled:   { value: false,      label: 'Enable Lighter Hole' },
+      lighterHolePreset:    { options: { 'Standard (25×14×80mm)': 'standard', 'Mini (21×11×63mm)': 'mini' }, label: 'Lighter Size' },
+      lighterHoleTolerance: { value: 0.4, min: 0.1, max: 1.0, step: 0.05, label: 'Tolerance (mm)' },
+      lighterHoleFloor:     { value: 2.5, min: 1.0, max: 8.0, step: 0.5,  label: 'Floor Thickness (mm)' },
+    }, { collapsed: false }),
 
     Shaders: folder({
       innerGlowIntensity: { value: 3.0, min: 0, max: 10, step: 0.1  },
@@ -1400,6 +1463,10 @@ export default function App() {
               voronoiMap={voronoiMap}
               wireframe={showWireframe}
             />
+            {/* Lighter cavity preview */}
+            {enrichedParams.lighterHoleEnabled && (
+              <LighterCavityMesh params={enrichedParams} />
+            )}
             {/* Wireframe edges — shown when wireframe mode is ON */}
             {showWireframe && (
               retopoPreviewBufs && retopoQuality !== 'OFF'
