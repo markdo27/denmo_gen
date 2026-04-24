@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useGeometryStore, useExportStore } from '../../lib/store';
+import { BIC_PRESETS } from '../../lib/geometry/lighterHole';
 
 export default function LeftPanel() {
   const tiers = useGeometryStore(state => state.tiers);
   const updateTier = useGeometryStore(state => state.updateTier);
   const updateTexture = useGeometryStore(state => state.updateTexture);
+  const updateLighterHole = useGeometryStore(state => state.updateLighterHole);
   const toggleTier = useGeometryStore(state => state.toggleTier);
   
   const [activeTierId, setActiveTierId] = useState(0);
@@ -19,6 +21,9 @@ export default function LeftPanel() {
   const handleTextureSlider = (field, val) => {
     updateTexture(activeTierId, { [field]: Number(val) });
   };
+
+  const lighterHole = activeTier.lighterHole || { enabled: false, preset: 'standard', tolerance: 0.4, bottomThickness: 2.5 };
+  const lighterDims = BIC_PRESETS[lighterHole.preset] || BIC_PRESETS.standard;
 
   return (
     <div className="w-80 bg-neutral-900 border-r border-neutral-800 text-neutral-200 p-4 overflow-y-auto flex flex-col gap-6 font-mono text-sm">
@@ -93,6 +98,69 @@ export default function LeftPanel() {
         </div>
       </div>
 
+      {/* Lighter Hole */}
+      <div className={!activeTier.enabled ? 'opacity-50 pointer-events-none' : ''}>
+        <h2 className="text-xs font-bold text-neutral-500 uppercase mb-3 tracking-wider">Lighter Hole</h2>
+        <div className="flex flex-col gap-4">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={lighterHole.enabled}
+              onChange={e => updateLighterHole(activeTierId, { enabled: e.target.checked })}
+              className="accent-amber-500"
+            />
+            Enable Bic Lighter Cavity
+          </label>
+
+          <div className={!lighterHole.enabled ? 'opacity-40 pointer-events-none' : ''}>
+            <label className="flex flex-col gap-1 mb-3">
+              <span className="text-xs">Lighter Size</span>
+              <select
+                value={lighterHole.preset}
+                onChange={e => updateLighterHole(activeTierId, { preset: e.target.value })}
+                className="bg-neutral-800 border border-neutral-700 rounded p-1 text-xs"
+              >
+                <option value="standard">Standard (25×14×80mm)</option>
+                <option value="mini">Mini (21×11×63mm)</option>
+              </select>
+            </label>
+
+            <div className="text-[10px] text-neutral-500 mb-3 leading-relaxed border border-neutral-800 rounded p-2 bg-neutral-800/50">
+              Cavity: {(lighterDims.bodyWidth + lighterHole.tolerance * 2).toFixed(1)} × {(lighterDims.bodyDepth + lighterHole.tolerance * 2).toFixed(1)}mm
+              <br />
+              Depth: {(lighterDims.bodyHeight - lighterDims.topExposed).toFixed(0)}mm — Top exposed: {lighterDims.topExposed}mm
+            </div>
+
+            <label className="flex flex-col gap-1 mb-3">
+              <div className="flex justify-between text-xs">
+                <span>Tolerance</span>
+                <span className="text-amber-400">{lighterHole.tolerance}mm</span>
+              </div>
+              <input
+                type="range" min="0.1" max="1.0" step="0.05"
+                value={lighterHole.tolerance}
+                onChange={e => updateLighterHole(activeTierId, { tolerance: Number(e.target.value) })}
+                className="w-full accent-amber-500"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <div className="flex justify-between text-xs">
+                <span>Floor Thickness</span>
+                <span className="text-amber-400">{lighterHole.bottomThickness}mm</span>
+              </div>
+              <input
+                type="range" min="1.0" max="8.0" step="0.5"
+                value={lighterHole.bottomThickness}
+                onChange={e => updateLighterHole(activeTierId, { bottomThickness: Number(e.target.value) })}
+                className="w-full accent-amber-500"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
+

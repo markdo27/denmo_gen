@@ -33,6 +33,12 @@ export function defaultTier(index) {
         ribDepth:  1.5,
         ribProfile:'sharp',
       },
+      lighterHole: {
+        enabled:         false,
+        preset:          'standard',
+        tolerance:       0.4,
+        bottomThickness: 2.5,
+      },
     },
     // Tier 1: upper pedestal
     {
@@ -51,6 +57,12 @@ export function defaultTier(index) {
         ribCount:  40,
         ribDepth:  1.5,
         ribProfile:'sharp',
+      },
+      lighterHole: {
+        enabled:         false,
+        preset:          'standard',
+        tolerance:       0.4,
+        bottomThickness: 2.5,
       },
     },
     // Tier 2: lower pedestal
@@ -71,6 +83,12 @@ export function defaultTier(index) {
         ribDepth:  2.0,
         ribProfile:'pleat',
       },
+      lighterHole: {
+        enabled:         false,
+        preset:          'standard',
+        tolerance:       0.4,
+        bottomThickness: 2.5,
+      },
     },
     // Tier 3: base (solid, no texture)
     {
@@ -89,6 +107,12 @@ export function defaultTier(index) {
         ribCount:  20,
         ribDepth:  0.8,
         ribProfile:'sine',
+      },
+      lighterHole: {
+        enabled:         false,
+        preset:          'standard',
+        tolerance:       0.4,
+        bottomThickness: 2.5,
       },
     },
   ];

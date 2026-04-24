@@ -16,6 +16,14 @@ export const useGeometryStore = create((set, get) => ({
     )
   })),
 
+  updateLighterHole: (id, holeUpdates) => set((state) => ({
+    tiers: state.tiers.map(t =>
+      t.id === id
+        ? { ...t, lighterHole: { ...t.lighterHole, ...holeUpdates } }
+        : t
+    )
+  })),
+
   toggleTier: (id, enabled) => set((state) => ({
     tiers: state.tiers.map(t => t.id === id ? { ...t, enabled } : t)
   })),
