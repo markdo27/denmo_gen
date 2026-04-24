@@ -965,12 +965,52 @@ export default function App() {
   };
 
   // ── STL export (with optional retopology) ──────────────────────────────
+  // Helper: remove degenerate triangles (near-zero area) from geometry
+  const cleanGeometryForExport = useCallback((mesh) => {
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position;
+    const idx = geo.index;
+
+    // Convert to non-indexed for simpler processing
+    const nonIndexed = idx ? geo.toNonIndexed() : geo.clone();
+    const srcPos = nonIndexed.attributes.position;
+    const cleanVerts = [];
+
+    for (let f = 0; f < srcPos.count; f += 3) {
+      const ax = srcPos.getX(f),   ay = srcPos.getY(f),   az = srcPos.getZ(f);
+      const bx = srcPos.getX(f+1), by = srcPos.getY(f+1), bz = srcPos.getZ(f+1);
+      const cx = srcPos.getX(f+2), cy = srcPos.getY(f+2), cz = srcPos.getZ(f+2);
+
+      // Cross product to get face area
+      const abx = bx-ax, aby = by-ay, abz = bz-az;
+      const acx = cx-ax, acy = cy-ay, acz = cz-az;
+      const nx = aby*acz - abz*acy;
+      const ny = abz*acx - abx*acz;
+      const nz = abx*acy - aby*acx;
+      const area = Math.sqrt(nx*nx + ny*ny + nz*nz) * 0.5;
+
+      // Skip degenerate triangles
+      if (area < 1e-6) continue;
+
+      cleanVerts.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+    }
+
+    const cleanGeo = new THREE.BufferGeometry();
+    cleanGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(cleanVerts), 3));
+    cleanGeo.computeVertexNormals();
+
+    const cleanMesh = new THREE.Mesh(cleanGeo, mesh.material);
+    return cleanMesh;
+  }, []);
+
   const exportSTL = useCallback(() => {
     if (!meshRef.current) return;
 
     if (retopoQuality === 'OFF') {
-      // Direct export, no retopology
-      const stl  = new STLExporter().parse(meshRef.current, { binary: false });
+      // Direct export — clean degenerate triangles first
+      const cleanMesh = cleanGeometryForExport(meshRef.current);
+      const stl  = new STLExporter().parse(cleanMesh, { binary: false });
+      cleanMesh.geometry.dispose();
       const link = Object.assign(document.createElement('a'), {
         href: URL.createObjectURL(new Blob([stl], { type: 'text/plain' })),
         download: `lamp_${Date.now()}.stl`,
@@ -1028,6 +1068,9 @@ export default function App() {
         const nz = (bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
         const nlen = Math.sqrt(nx*nx+ny*ny+nz*nz) || 1;
 
+        // Skip degenerate triangles
+        if (nlen < 1e-6) continue;
+
         stl += `  facet normal ${(nx/nlen).toFixed(6)} ${(ny/nlen).toFixed(6)} ${(nz/nlen).toFixed(6)}\n`;
         stl += `    outer loop\n`;
         stl += `      vertex ${ax.toFixed(6)} ${ay.toFixed(6)} ${az.toFixed(6)}\n`;
@@ -1057,7 +1100,7 @@ export default function App() {
       worker.terminate();
       setRetopoStatus(null);
     };
-  }, [meshRef, retopoQuality]);
+  }, [meshRef, retopoQuality, cleanGeometryForExport]);
 
   // ── G-code export helper (actual send) ────────────────────────────────
   const doExportGCode = useCallback(() => {
