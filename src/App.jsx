@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, Grid } from '@react-three/drei';
 import { Leva, useControls, folder, button } from 'leva';
 import * as THREE from 'three';
-import { STLExporter } from 'three-stdlib';
+import { STLExporter, mergeBufferGeometries } from 'three-stdlib';
 import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3, Download, Upload } from 'lucide-react';
 import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
 import { buildLighterCavityGeometry, roundedRectProfile, BIC_PRESETS } from '../ribbed-lamp-studio/lib/geometry/lighterHole.js';
@@ -397,6 +397,120 @@ function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacit
 }
 
 // ============================================================================
+// LIGHTER CAVITY GEOMETRY BUILDER
+// Extracts the logic so it can be used for both viewport mesh and STL export
+// ============================================================================
+export function computeLighterCavityGeometry(params, rdMap, voronoiMap, customProfileData) {
+  const {
+    lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
+    lighterHoleFloor, height, mirrorY
+  } = params;
+
+  if (!lighterHoleEnabled) return null;
+  const dims = BIC_PRESETS[lighterHolePreset] || BIC_PRESETS.standard;
+  const cavityDepth = Math.min(
+    dims.bodyHeight - dims.topExposed,
+    height * 10 - lighterHoleFloor
+  );
+  if (cavityDepth <= 0) return null;
+
+  // Cavity dimensions in mm
+  const cavW = dims.bodyWidth  + lighterHoleTolerance * 2;
+  const cavD = dims.bodyDepth  + lighterHoleTolerance * 2;
+  const cavR = dims.cornerRadius + lighterHoleTolerance;
+
+  const scale = 0.1; // mm → cm
+  const floorY = lighterHoleFloor * scale;
+  const topY   = height; // cm
+
+  // Rounded-rect cavity profile
+  const cavProfile = roundedRectProfile({
+    width: cavW, depth: cavD, cornerRadius: cavR, segments: 8,
+  });
+  const N = cavProfile.length;
+
+  const positions = [];
+  const indices   = [];
+  const vertSteps = 32;
+
+  // ── 1. Cavity inner walls (from floorY up to topY) ──────────────────
+  for (let row = 0; row <= vertSteps; row++) {
+    const y = floorY + (row / vertSteps) * (topY - floorY);
+    for (let p = 0; p < N; p++) {
+      positions.push(cavProfile[p].x * scale, y, cavProfile[p].z * scale);
+    }
+  }
+  for (let row = 0; row < vertSteps; row++) {
+    for (let p = 0; p < N; p++) {
+      const next = (p + 1) % N;
+      const a = row * N + p;
+      const b = row * N + next;
+      const c = (row + 1) * N + p;
+      const d = (row + 1) * N + next;
+      indices.push(a, d, b, a, c, d);
+    }
+  }
+
+  // ── 2. Cavity floor (at y = floorY) ─────────────────────────────────
+  const floorBase = positions.length / 3;
+  positions.push(0, floorY, 0);
+  for (let p = 0; p < N; p++) {
+    positions.push(cavProfile[p].x * scale, floorY, cavProfile[p].z * scale);
+  }
+  for (let p = 0; p < N; p++) {
+    const next = (p + 1) % N;
+    indices.push(floorBase, floorBase + 1 + next, floorBase + 1 + p);
+  }
+
+  // ── 3. Top annular cap ──────────────────────────────────────────────
+  const radialSegs = params.radialSegments || 48;
+  const lipBase = positions.length / 3;
+  const twistYNorm = 1.0;
+
+  const t = 1.0;
+  const evalT = mirrorY ? 0.0 : 1.0;
+  const actualBaseR = getSmoothedProfileRadius(evalT, params, customProfileData);
+
+  for (let i = 0; i < radialSegs; i++) {
+    const angle = (i / radialSegs) * Math.PI * 2;
+    const baseR = actualBaseR;
+    const r = applyRadiusModifiers(angle, twistYNorm, height, baseR, params, rdMap, voronoiMap);
+
+    const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
+    const finalAngle = angle + sampleTwistY * (params.twistAngle || 0);
+
+    positions.push(
+      r * Math.cos(finalAngle),
+      topY,
+      r * Math.sin(finalAngle),
+    );
+  }
+
+  for (let p = 0; p < N; p++) {
+    positions.push(cavProfile[p].x * scale, topY, cavProfile[p].z * scale);
+  }
+
+  const outerStart = lipBase;
+  const innerStart = lipBase + radialSegs;
+
+  for (let i = 0; i < Math.max(radialSegs, N); i++) {
+    const oIdx  = Math.floor((i / Math.max(radialSegs, N)) * radialSegs) % radialSegs;
+    const oNext = (oIdx + 1) % radialSegs;
+    const iIdx  = Math.floor((i / Math.max(radialSegs, N)) * N) % N;
+    const iNext = (iIdx + 1) % N;
+
+    indices.push(outerStart + oIdx, outerStart + oNext, innerStart + iIdx);
+    indices.push(outerStart + oNext, innerStart + iNext, innerStart + iIdx);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// ============================================================================
 // LIGHTER CAVITY MESH  (cavity walls + top annular cap for print-ready case)
 // The top cap outer ring uses applyRadiusModifiers so it matches the actual
 // lamp cross-section shape (square, hex, circle, star, etc.)
@@ -408,125 +522,16 @@ function LighterCavityMesh({ params, rdMap, voronoiMap, customProfileData }) {
   } = params;
 
   const geometry = useMemo(() => {
-    if (!lighterHoleEnabled) return null;
-    const dims = BIC_PRESETS[lighterHolePreset] || BIC_PRESETS.standard;
-    const cavityDepth = Math.min(
-      dims.bodyHeight - dims.topExposed,
-      height * 10 - lighterHoleFloor
-    );
-    if (cavityDepth <= 0) return null;
-
-    // Cavity dimensions in mm
-    const cavW = dims.bodyWidth  + lighterHoleTolerance * 2;
-    const cavD = dims.bodyDepth  + lighterHoleTolerance * 2;
-    const cavR = dims.cornerRadius + lighterHoleTolerance;
-
-    const scale = 0.1; // mm → cm
-    const floorY = lighterHoleFloor * scale;
-    const topY   = height; // cm
-
-    // Rounded-rect cavity profile
-    const cavProfile = roundedRectProfile({
-      width: cavW, depth: cavD, cornerRadius: cavR, segments: 8,
-    });
-    const N = cavProfile.length;
-
-    const positions = [];
-    const indices   = [];
-    const vertSteps = 32;
-
-    // ── 1. Cavity inner walls (from floorY up to topY) ──────────────────
-    for (let row = 0; row <= vertSteps; row++) {
-      const y = floorY + (row / vertSteps) * (topY - floorY);
-      for (let p = 0; p < N; p++) {
-        positions.push(cavProfile[p].x * scale, y, cavProfile[p].z * scale);
-      }
-    }
-    for (let row = 0; row < vertSteps; row++) {
-      for (let p = 0; p < N; p++) {
-        const next = (p + 1) % N;
-        const a = row * N + p;
-        const b = row * N + next;
-        const c = (row + 1) * N + p;
-        const d = (row + 1) * N + next;
-        indices.push(a, d, b, a, c, d);
-      }
-    }
-
-    // ── 2. Cavity floor (at y = floorY) ─────────────────────────────────
-    const floorBase = positions.length / 3;
-    positions.push(0, floorY, 0);
-    for (let p = 0; p < N; p++) {
-      positions.push(cavProfile[p].x * scale, floorY, cavProfile[p].z * scale);
-    }
-    for (let p = 0; p < N; p++) {
-      const next = (p + 1) % N;
-      indices.push(floorBase, floorBase + 1 + next, floorBase + 1 + p);
-    }
-
-    // ── 3. Top annular cap ──────────────────────────────────────────────
-    // Sample the ACTUAL lamp outer edge at y=height using applyRadiusModifiers
-    // This ensures the cap matches the cross-section shape (square, hex, etc.)
-    const radialSegs = params.radialSegments || 48;
-    const lipBase = positions.length / 3;
-    const twistYNorm = 1.0; // top of lamp
-
-    // Outer ring: computed from the lamp's modifier pipeline
-    // First, determine the actual 2D profile radius at the top (t=1.0)
-    // Note: mirrorY flips t, so if mirrorY is on, t=1.0 becomes t=0.0 in the base profile.
-    const t = 1.0;
-    const evalT = mirrorY ? 0.0 : 1.0;
-    const actualBaseR = getSmoothedProfileRadius(evalT, params, customProfileData);
-
-    for (let i = 0; i < radialSegs; i++) {
-      const angle = (i / radialSegs) * Math.PI * 2;
-      const baseR = actualBaseR; // use the true base radius for the top profile edge
-      const r = applyRadiusModifiers(angle, twistYNorm, height, baseR, params, rdMap, voronoiMap);
-
-      // Apply twist (same logic as in Lamp component)
-      const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
-      const finalAngle = angle + sampleTwistY * (params.twistAngle || 0);
-
-      positions.push(
-        r * Math.cos(finalAngle),
-        topY,
-        r * Math.sin(finalAngle),
-      );
-    }
-
-    // Inner ring: lighter cavity at top
-    for (let p = 0; p < N; p++) {
-      positions.push(cavProfile[p].x * scale, topY, cavProfile[p].z * scale);
-    }
-
-    const outerStart = lipBase;
-    const innerStart = lipBase + radialSegs;
-
-    // Stitch outer ring to inner rect
-    for (let i = 0; i < Math.max(radialSegs, N); i++) {
-      const oIdx  = Math.floor((i / Math.max(radialSegs, N)) * radialSegs) % radialSegs;
-      const oNext = (oIdx + 1) % radialSegs;
-      const iIdx  = Math.floor((i / Math.max(radialSegs, N)) * N) % N;
-      const iNext = (iIdx + 1) % N;
-
-      indices.push(outerStart + oIdx, outerStart + oNext, innerStart + iIdx);
-      indices.push(outerStart + oNext, innerStart + iNext, innerStart + iIdx);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    return geo;
+    return computeLighterCavityGeometry(params, rdMap, voronoiMap, customProfileData);
   }, [
-    lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
-    lighterHoleFloor, height, topRadius, bottomRadius, midRadius, params.radialSegments,
+    params.lighterHoleEnabled, params.lighterHolePreset, params.lighterHoleTolerance,
+    params.lighterHoleFloor, params.height, params.topRadius, params.bottomRadius, params.midRadius, params.radialSegments,
     params.crossSection, params.twistAngle, params.mirrorY,
     params.ribFreq, params.ribDepth, params.ribProfile, params.ribPhase,
     params.diamondFreq, params.diamondDepth,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
-    rdMap, voronoiMap, customProfileData, profileSmoothing, verticalProfile
+    rdMap, voronoiMap, customProfileData, params.profileSmoothing, params.verticalProfile
   ]);
 
   if (!geometry) return null;
@@ -1042,6 +1047,56 @@ export default function App() {
     customProfileData, rdMap, voronoiMap,
   ]);
 
+  // ── Helper: remove degenerate triangles (near-zero area) from geometry ──
+  const cleanGeometryForExport = useCallback((mesh) => {
+    const geo = mesh.geometry;
+    const pos = geo.attributes.position;
+    const idx = geo.index;
+
+    // Convert to non-indexed for simpler processing
+    const nonIndexed = idx ? geo.toNonIndexed() : geo.clone();
+    const srcPos = nonIndexed.attributes.position;
+    const cleanVerts = [];
+
+    for (let f = 0; f < srcPos.count; f += 3) {
+      const ax = srcPos.getX(f),   ay = srcPos.getY(f),   az = srcPos.getZ(f);
+      const bx = srcPos.getX(f+1), by = srcPos.getY(f+1), bz = srcPos.getZ(f+1);
+      const cx = srcPos.getX(f+2), cy = srcPos.getY(f+2), cz = srcPos.getZ(f+2);
+
+      // Cross product to get face area
+      const abx = bx-ax, aby = by-ay, abz = bz-az;
+      const acx = cx-ax, acy = cy-ay, acz = cz-az;
+      const nx = aby*acz - abz*acy;
+      const ny = abz*acx - abx*acz;
+      const nz = abx*acy - aby*acx;
+      const area = Math.sqrt(nx*nx + ny*ny + nz*nz) * 0.5;
+
+      // Skip degenerate triangles
+      if (area < 1e-6) continue;
+
+      cleanVerts.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+    }
+
+    const cleanGeo = new THREE.BufferGeometry();
+    cleanGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(cleanVerts), 3));
+    cleanGeo.computeVertexNormals();
+
+    const cleanMesh = new THREE.Mesh(cleanGeo, mesh.material);
+    return cleanMesh;
+  }, []);
+
+  const getMergedGeometryForExport = useCallback(() => {
+    if (!meshRef.current) return null;
+    let baseGeo = cleanGeometryForExport(meshRef.current).geometry;
+    if (enrichedParams.lighterHoleEnabled) {
+      const cavityGeo = computeLighterCavityGeometry(enrichedParams, rdMap, voronoiMap, customProfileData);
+      if (cavityGeo) {
+        baseGeo = mergeBufferGeometries([baseGeo, cavityGeo], false);
+      }
+    }
+    return baseGeo;
+  }, [cleanGeometryForExport, enrichedParams, rdMap, voronoiMap, customProfileData]);
+
   // ── Retopo preview worker — live wireframe preview on quality change ──────
   // Fires whenever wireframe is ON + a non-OFF quality is selected,
   // and whenever any geometry-affecting parameter changes.
@@ -1058,8 +1113,8 @@ export default function App() {
     setRetopoPreviewLoading(true);
 
     retopoPreviewDebounce.current = setTimeout(() => {
-      const geo = meshRef.current?.geometry;
-      if (!geo?.attributes?.position) { setRetopoPreviewLoading(false); return; }
+      const geo = getMergedGeometryForExport();
+      if (!geo || !geo.attributes.position) { setRetopoPreviewLoading(false); return; }
 
       const posAttr   = geo.attributes.position;
       const positions = posAttr.array.slice();   // copy — transferred to worker
@@ -1070,6 +1125,7 @@ export default function App() {
         indices = new Uint32Array(posAttr.count);
         for (let i = 0; i < posAttr.count; i++) indices[i] = i;
       }
+      geo.dispose();
 
       const worker = new Worker(
         new URL('./workers/retopologyWorker.js', import.meta.url),
@@ -1154,52 +1210,15 @@ export default function App() {
   };
 
   // ── STL export (with optional retopology) ──────────────────────────────
-  // Helper: remove degenerate triangles (near-zero area) from geometry
-  const cleanGeometryForExport = useCallback((mesh) => {
-    const geo = mesh.geometry;
-    const pos = geo.attributes.position;
-    const idx = geo.index;
-
-    // Convert to non-indexed for simpler processing
-    const nonIndexed = idx ? geo.toNonIndexed() : geo.clone();
-    const srcPos = nonIndexed.attributes.position;
-    const cleanVerts = [];
-
-    for (let f = 0; f < srcPos.count; f += 3) {
-      const ax = srcPos.getX(f),   ay = srcPos.getY(f),   az = srcPos.getZ(f);
-      const bx = srcPos.getX(f+1), by = srcPos.getY(f+1), bz = srcPos.getZ(f+1);
-      const cx = srcPos.getX(f+2), cy = srcPos.getY(f+2), cz = srcPos.getZ(f+2);
-
-      // Cross product to get face area
-      const abx = bx-ax, aby = by-ay, abz = bz-az;
-      const acx = cx-ax, acy = cy-ay, acz = cz-az;
-      const nx = aby*acz - abz*acy;
-      const ny = abz*acx - abx*acz;
-      const nz = abx*acy - aby*acx;
-      const area = Math.sqrt(nx*nx + ny*ny + nz*nz) * 0.5;
-
-      // Skip degenerate triangles
-      if (area < 1e-6) continue;
-
-      cleanVerts.push(ax, ay, az, bx, by, bz, cx, cy, cz);
-    }
-
-    const cleanGeo = new THREE.BufferGeometry();
-    cleanGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(cleanVerts), 3));
-    cleanGeo.computeVertexNormals();
-
-    const cleanMesh = new THREE.Mesh(cleanGeo, mesh.material);
-    return cleanMesh;
-  }, []);
-
   const exportSTL = useCallback(() => {
-    if (!meshRef.current) return;
+    const exportGeo = getMergedGeometryForExport();
+    if (!exportGeo) return;
 
     if (retopoQuality === 'OFF') {
-      // Direct export — clean degenerate triangles first
-      const cleanMesh = cleanGeometryForExport(meshRef.current);
-      const stl  = new STLExporter().parse(cleanMesh, { binary: false });
-      cleanMesh.geometry.dispose();
+      // Direct export — use the merged geometry directly
+      const exportMesh = new THREE.Mesh(exportGeo, new THREE.MeshBasicMaterial());
+      const stl  = new STLExporter().parse(exportMesh, { binary: false });
+      exportGeo.dispose();
       const link = Object.assign(document.createElement('a'), {
         href: URL.createObjectURL(new Blob([stl], { type: 'text/plain' })),
         download: `lamp_${Date.now()}.stl`,
@@ -1212,8 +1231,8 @@ export default function App() {
       return;
     }
 
-    // Extract raw buffers from the live Three.js mesh
-    const geo = meshRef.current.geometry;
+    // Extract raw buffers from the merged geometry
+    const geo = exportGeo;
     if (!geo || !geo.attributes.position) return;
 
     const posAttr = geo.attributes.position;
