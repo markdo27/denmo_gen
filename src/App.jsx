@@ -76,6 +76,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.thickness, params.verticalProfile, params.solidVaseMode,
     params.closeTop, params.closeBottom, params.mirrorY,
     params.verticalSegments, params.profileSmoothing, customProfileData,
+    params.lighterHoleEnabled,
     // SuperShape profile deps
     params.sfProfile, params.shProfile, params.seN, params.seE,
   ]);
@@ -391,11 +392,13 @@ function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacit
 
 // ============================================================================
 // LIGHTER CAVITY MESH  (cavity walls + top annular cap for print-ready case)
+// The top cap outer ring uses applyRadiusModifiers so it matches the actual
+// lamp cross-section shape (square, hex, circle, star, etc.)
 // ============================================================================
-function LighterCavityMesh({ params }) {
+function LighterCavityMesh({ params, rdMap, voronoiMap }) {
   const {
     lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
-    lighterHoleFloor, height, topRadius, bottomRadius, midRadius,
+    lighterHoleFloor, height, topRadius,
   } = params;
 
   const geometry = useMemo(() => {
@@ -403,7 +406,7 @@ function LighterCavityMesh({ params }) {
     const dims = BIC_PRESETS[lighterHolePreset] || BIC_PRESETS.standard;
     const cavityDepth = Math.min(
       dims.bodyHeight - dims.topExposed,
-      height * 10 - lighterHoleFloor  // height is in cm, cavity in mm
+      height * 10 - lighterHoleFloor
     );
     if (cavityDepth <= 0) return null;
 
@@ -414,9 +417,9 @@ function LighterCavityMesh({ params }) {
 
     const scale = 0.1; // mm → cm
     const floorY = lighterHoleFloor * scale;
-    const topY   = height; // cm — top of the lamp
+    const topY   = height; // cm
 
-    // Build the rounded-rect cavity profile (in mm)
+    // Rounded-rect cavity profile
     const cavProfile = roundedRectProfile({
       width: cavW, depth: cavD, cornerRadius: cavR, segments: 8,
     });
@@ -433,7 +436,6 @@ function LighterCavityMesh({ params }) {
         positions.push(cavProfile[p].x * scale, y, cavProfile[p].z * scale);
       }
     }
-    // Inward-facing quads (reversed winding)
     for (let row = 0; row < vertSteps; row++) {
       for (let p = 0; p < N; p++) {
         const next = (p + 1) % N;
@@ -447,7 +449,7 @@ function LighterCavityMesh({ params }) {
 
     // ── 2. Cavity floor (at y = floorY) ─────────────────────────────────
     const floorBase = positions.length / 3;
-    positions.push(0, floorY, 0); // centre
+    positions.push(0, floorY, 0);
     for (let p = 0; p < N; p++) {
       positions.push(cavProfile[p].x * scale, floorY, cavProfile[p].z * scale);
     }
@@ -456,22 +458,31 @@ function LighterCavityMesh({ params }) {
       indices.push(floorBase, floorBase + 1 + next, floorBase + 1 + p);
     }
 
-    // ── 3. Top annular cap (connects lamp outer radius → cavity rim) ────
-    // Build outer ring at topY using the lamp's radius at the top
-    const outerR = topRadius; // cm — lamp radius at the top
-    const radialSegs = 48;
+    // ── 3. Top annular cap ──────────────────────────────────────────────
+    // Sample the ACTUAL lamp outer edge at y=height using applyRadiusModifiers
+    // This ensures the cap matches the cross-section shape (square, hex, etc.)
+    const radialSegs = params.radialSegments || 48;
     const lipBase = positions.length / 3;
+    const twistYNorm = 1.0; // top of lamp
 
-    // Outer circle ring
+    // Outer ring: computed from the lamp's modifier pipeline
     for (let i = 0; i < radialSegs; i++) {
       const angle = (i / radialSegs) * Math.PI * 2;
+      const baseR = topRadius; // base radius at the top
+      const r = applyRadiusModifiers(angle, twistYNorm, height, baseR, params, rdMap, voronoiMap);
+
+      // Apply twist (same logic as in Lamp component)
+      const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
+      const finalAngle = angle + sampleTwistY * (params.twistAngle || 0);
+
       positions.push(
-        outerR * Math.cos(angle),
+        r * Math.cos(finalAngle),
         topY,
-        outerR * Math.sin(angle),
+        r * Math.sin(finalAngle),
       );
     }
-    // Inner cavity ring (already in cm)
+
+    // Inner ring: lighter cavity at top
     for (let p = 0; p < N; p++) {
       positions.push(cavProfile[p].x * scale, topY, cavProfile[p].z * scale);
     }
@@ -479,23 +490,15 @@ function LighterCavityMesh({ params }) {
     const outerStart = lipBase;
     const innerStart = lipBase + radialSegs;
 
-    // Stitch outer circle to inner rect using ratio mapping
+    // Stitch outer ring to inner rect
     for (let i = 0; i < Math.max(radialSegs, N); i++) {
       const oIdx  = Math.floor((i / Math.max(radialSegs, N)) * radialSegs) % radialSegs;
       const oNext = (oIdx + 1) % radialSegs;
       const iIdx  = Math.floor((i / Math.max(radialSegs, N)) * N) % N;
       const iNext = (iIdx + 1) % N;
 
-      indices.push(
-        outerStart + oIdx,
-        outerStart + oNext,
-        innerStart + iIdx,
-      );
-      indices.push(
-        outerStart + oNext,
-        innerStart + iNext,
-        innerStart + iIdx,
-      );
+      indices.push(outerStart + oIdx, outerStart + oNext, innerStart + iIdx);
+      indices.push(outerStart + oNext, innerStart + iNext, innerStart + iIdx);
     }
 
     const geo = new THREE.BufferGeometry();
@@ -503,7 +506,16 @@ function LighterCavityMesh({ params }) {
     geo.setIndex(indices);
     geo.computeVertexNormals();
     return geo;
-  }, [lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance, lighterHoleFloor, height, topRadius]);
+  }, [
+    lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
+    lighterHoleFloor, height, topRadius, params.radialSegments,
+    params.crossSection, params.twistAngle, params.mirrorY,
+    params.ribFreq, params.ribDepth, params.ribProfile, params.ribPhase,
+    params.diamondFreq, params.diamondDepth,
+    params.verticalRipples, params.verticalRippleDepth,
+    params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
+    rdMap, voronoiMap,
+  ]);
 
   if (!geometry) return null;
 
@@ -1565,7 +1577,7 @@ export default function App() {
             />
             {/* Lighter cavity preview */}
             {enrichedParams.lighterHoleEnabled && (
-              <LighterCavityMesh params={enrichedParams} />
+              <LighterCavityMesh params={enrichedParams} rdMap={rdMap} voronoiMap={voronoiMap} />
             )}
             {/* Wireframe edges — shown when wireframe mode is ON */}
             {showWireframe && (
