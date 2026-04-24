@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3 } from 'lucide-react';
 import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
+import { loopSubdivide } from './algorithms/subdivision.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
 import {
@@ -67,7 +68,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.height, params.bottomRadius, params.midRadius, params.topRadius,
     params.thickness, params.verticalProfile, params.solidVaseMode,
     params.closeTop, params.closeBottom, params.mirrorY,
-    params.verticalSegments, customProfileData,
+    params.verticalSegments, params.profileSmoothing, customProfileData,
     // SuperShape profile deps
     params.sfProfile, params.shProfile, params.seN, params.seE,
   ]);
@@ -109,6 +110,36 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       geo.computeVertexNormals();
     }
 
+    // ── Subdivision surface pass ──────────────────────────────────────────
+    const subdivLevel = params.subdivisionLevel || 0;
+    if (subdivLevel > 0) {
+      // Extract positions and indices from the BufferGeometry
+      const srcGeo = geo.index ? geo : geo.toNonIndexed();
+      let srcPos = srcGeo.attributes.position.array;
+      let srcIdx;
+
+      if (srcGeo.index) {
+        srcIdx = new Uint32Array(srcGeo.index.array);
+      } else {
+        // Build sequential index for non-indexed geo
+        srcIdx = new Uint32Array(srcPos.length / 3);
+        for (let k = 0; k < srcIdx.length; k++) srcIdx[k] = k;
+      }
+
+      const subdiv = loopSubdivide(
+        new Float32Array(srcPos),
+        srcIdx,
+        subdivLevel
+      );
+
+      geo.dispose();
+      const subdivGeo = new THREE.BufferGeometry();
+      subdivGeo.setAttribute('position', new THREE.Float32BufferAttribute(subdiv.positions, 3));
+      subdivGeo.setIndex(new THREE.Uint32BufferAttribute(subdiv.indices, 1));
+      subdivGeo.computeVertexNormals();
+      return subdivGeo;
+    }
+
     return geo;
   }, [
     points,
@@ -123,6 +154,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.superFormulaDepth, params.harmonicDepth,
     params.sfModifier, params.shModifier,
     params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ,
+    params.subdivisionLevel,
     rdMap, voronoiMap,
   ]);
 
@@ -546,6 +578,7 @@ export default function App() {
     Resolution: folder({
       verticalSegments: { value: 100, min: 10, max: 800, step: 1,  label: 'Vertical Steps' },
       radialSegments:   { value: 64,  min: 3,  max: 200, step: 1,  label: 'Radial Steps'   },
+      subdivisionLevel: { value: 0,   min: 0,  max: 2,   step: 1,  label: 'Subdivision'    },
     }),
 
     'Print Settings': folder({
