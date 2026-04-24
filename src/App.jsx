@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three-stdlib';
 import { AlertTriangle, CheckCircle, XCircle, Layers, Grid3x3, Download, Upload } from 'lucide-react';
 import { getProfileRadius, getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
-import { buildLighterCavityGeometry, BIC_PRESETS } from '../ribbed-lamp-studio/lib/geometry/lighterHole.js';
+import { buildLighterCavityGeometry, roundedRectProfile, BIC_PRESETS } from '../ribbed-lamp-studio/lib/geometry/lighterHole.js';
 import { loopSubdivide } from './algorithms/subdivision.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
@@ -384,12 +384,12 @@ function RawLampWireframe({ params, customProfileData, color = '#00ff88', opacit
 }
 
 // ============================================================================
-// LIGHTER CAVITY MESH  (translucent preview of the lighter hole)
+// LIGHTER CAVITY MESH  (cavity walls + top annular cap for print-ready case)
 // ============================================================================
 function LighterCavityMesh({ params }) {
   const {
     lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance,
-    lighterHoleFloor, height,
+    lighterHoleFloor, height, topRadius, bottomRadius, midRadius,
   } = params;
 
   const geometry = useMemo(() => {
@@ -401,25 +401,103 @@ function LighterCavityMesh({ params }) {
     );
     if (cavityDepth <= 0) return null;
 
-    const geo = buildLighterCavityGeometry({
-      preset:    lighterHolePreset,
-      tolerance: lighterHoleTolerance,
-      caseDepth: cavityDepth,
-      verticalSteps: 32,
-    });
+    // Cavity dimensions in mm
+    const cavW = dims.bodyWidth  + lighterHoleTolerance * 2;
+    const cavD = dims.bodyDepth  + lighterHoleTolerance * 2;
+    const cavR = dims.cornerRadius + lighterHoleTolerance;
 
-    // Scale from mm to cm (the main app works in cm)
-    const scale = 0.1;
-    const posAttr = geo.attributes.position;
-    for (let i = 0; i < posAttr.count; i++) {
-      posAttr.setX(i, posAttr.getX(i) * scale);
-      posAttr.setY(i, posAttr.getY(i) * scale + lighterHoleFloor * scale);
-      posAttr.setZ(i, posAttr.getZ(i) * scale);
+    const scale = 0.1; // mm → cm
+    const floorY = lighterHoleFloor * scale;
+    const topY   = height; // cm — top of the lamp
+
+    // Build the rounded-rect cavity profile (in mm)
+    const cavProfile = roundedRectProfile({
+      width: cavW, depth: cavD, cornerRadius: cavR, segments: 8,
+    });
+    const N = cavProfile.length;
+
+    const positions = [];
+    const indices   = [];
+    const vertSteps = 32;
+
+    // ── 1. Cavity inner walls (from floorY up to topY) ──────────────────
+    for (let row = 0; row <= vertSteps; row++) {
+      const y = floorY + (row / vertSteps) * (topY - floorY);
+      for (let p = 0; p < N; p++) {
+        positions.push(cavProfile[p].x * scale, y, cavProfile[p].z * scale);
+      }
     }
-    posAttr.needsUpdate = true;
+    // Inward-facing quads (reversed winding)
+    for (let row = 0; row < vertSteps; row++) {
+      for (let p = 0; p < N; p++) {
+        const next = (p + 1) % N;
+        const a = row * N + p;
+        const b = row * N + next;
+        const c = (row + 1) * N + p;
+        const d = (row + 1) * N + next;
+        indices.push(a, d, b, a, c, d);
+      }
+    }
+
+    // ── 2. Cavity floor (at y = floorY) ─────────────────────────────────
+    const floorBase = positions.length / 3;
+    positions.push(0, floorY, 0); // centre
+    for (let p = 0; p < N; p++) {
+      positions.push(cavProfile[p].x * scale, floorY, cavProfile[p].z * scale);
+    }
+    for (let p = 0; p < N; p++) {
+      const next = (p + 1) % N;
+      indices.push(floorBase, floorBase + 1 + next, floorBase + 1 + p);
+    }
+
+    // ── 3. Top annular cap (connects lamp outer radius → cavity rim) ────
+    // Build outer ring at topY using the lamp's radius at the top
+    const outerR = topRadius; // cm — lamp radius at the top
+    const radialSegs = 48;
+    const lipBase = positions.length / 3;
+
+    // Outer circle ring
+    for (let i = 0; i < radialSegs; i++) {
+      const angle = (i / radialSegs) * Math.PI * 2;
+      positions.push(
+        outerR * Math.cos(angle),
+        topY,
+        outerR * Math.sin(angle),
+      );
+    }
+    // Inner cavity ring (already in cm)
+    for (let p = 0; p < N; p++) {
+      positions.push(cavProfile[p].x * scale, topY, cavProfile[p].z * scale);
+    }
+
+    const outerStart = lipBase;
+    const innerStart = lipBase + radialSegs;
+
+    // Stitch outer circle to inner rect using ratio mapping
+    for (let i = 0; i < Math.max(radialSegs, N); i++) {
+      const oIdx  = Math.floor((i / Math.max(radialSegs, N)) * radialSegs) % radialSegs;
+      const oNext = (oIdx + 1) % radialSegs;
+      const iIdx  = Math.floor((i / Math.max(radialSegs, N)) * N) % N;
+      const iNext = (iIdx + 1) % N;
+
+      indices.push(
+        outerStart + oIdx,
+        outerStart + oNext,
+        innerStart + iIdx,
+      );
+      indices.push(
+        outerStart + oNext,
+        innerStart + iNext,
+        innerStart + iIdx,
+      );
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
     geo.computeVertexNormals();
     return geo;
-  }, [lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance, lighterHoleFloor, height]);
+  }, [lighterHoleEnabled, lighterHolePreset, lighterHoleTolerance, lighterHoleFloor, height, topRadius]);
 
   if (!geometry) return null;
 
@@ -879,6 +957,18 @@ export default function App() {
       params.shModM4, params.shModM5, params.shModM6, params.shModM7,
     ],
   }), [params]);
+
+  // ── Auto-set print-ready caps when lighter hole is enabled ─────────────
+  useEffect(() => {
+    if (params.lighterHoleEnabled) {
+      // Force solid body with closed bottom, open top (lighter goes in from top)
+      setParams({
+        solidVaseMode: true,
+        closeBottom:   true,
+        closeTop:      false,
+      });
+    }
+  }, [params.lighterHoleEnabled]);
 
   // ── Auto-recompute RD map — debounced 800 ms ───────────────────────────
   useEffect(() => {
