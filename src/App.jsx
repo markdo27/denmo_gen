@@ -164,6 +164,37 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       const subdivGeo = new THREE.BufferGeometry();
       subdivGeo.setAttribute('position', new THREE.Float32BufferAttribute(subdiv.positions, 3));
       subdivGeo.setIndex(new THREE.Uint32BufferAttribute(subdiv.indices, 1));
+
+      // ── Post-subdivision cap closure ──────────────────────────────────
+      // Subdivision smooths cap vertices away from the flat plane.
+      // Re-flatten them after subdivision.
+      if (params.closeBottom || params.closeTop || params.solidVaseMode) {
+        const subdivPos = subdivGeo.attributes.position;
+        const capYEps   = params.height * 0.05;  // wider tolerance — subdiv spreads verts
+
+        for (let i = 0; i < subdivPos.count; i++) {
+          const x = subdivPos.getX(i);
+          const y = subdivPos.getY(i);
+          const z = subdivPos.getZ(i);
+          const r = Math.sqrt(x * x + z * z);
+
+          // Collapse center-axis vertices
+          if (r < 0.15) {
+            subdivPos.setXYZ(i, 0, y, 0);
+          }
+
+          // Flatten bottom cap vertices
+          if ((params.closeBottom || params.solidVaseMode) && y < capYEps) {
+            subdivPos.setY(i, 0);
+          }
+          // Flatten top cap vertices
+          if ((params.closeTop || params.solidVaseMode) && y > params.height - capYEps) {
+            subdivPos.setY(i, params.height);
+          }
+        }
+        subdivPos.needsUpdate = true;
+      }
+
       subdivGeo.computeVertexNormals();
       return subdivGeo;
     }
