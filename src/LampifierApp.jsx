@@ -251,7 +251,7 @@ function E27PreviewCylinders({ boundingBox }) {
       <mesh position={[cx, topY - topH / 2 + 0.01, cz]}>
         <cylinderGeometry args={[topR, topR, topH, 48]} />
         <meshStandardMaterial
-          color="#00ff9d"
+          color="#f5a623"
           transparent
           opacity={0.35}
           depthWrite={false}

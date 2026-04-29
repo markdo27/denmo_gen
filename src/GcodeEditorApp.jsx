@@ -267,7 +267,7 @@ function SelectedPointsInner({ moves, selection, cx, cy, count }) {
   return (
     <instancedMesh ref={ref} args={[null, null, selection.size]}>
       <sphereGeometry args={[0.28, 6, 4]} />
-      <meshBasicMaterial color="#ffcc00" />
+      <meshBasicMaterial color="#f5a623" />
     </instancedMesh>
   );
 }
@@ -1028,7 +1028,7 @@ export default function GcodeEditorApp() {
             {stats && (
               <>
                 <div className="ge-stat-pill">{stats.extrudedMoves.toLocaleString()} moves</div>
-                {selCount > 0 && <div className="ge-stat-pill" style={{ color: 'var(--ge-gold)' }}>◼ {selCount.toLocaleString()} selected</div>}
+                {selCount > 0 && <div className="ge-stat-pill" style={{ color: 'var(--ge-accent)' }}>◼ {selCount.toLocaleString()} selected</div>}
               </>
             )}
           </div>
@@ -1039,7 +1039,7 @@ export default function GcodeEditorApp() {
           <aside className="ge-panel-right" aria-label="Raw G-code viewer">
             <div className="ge-code-header">
               <span>Raw G-Code</span>
-              {selCount > 0 && <span style={{ color: 'var(--ge-gold)' }}>{selCount} lines tagged</span>}
+              {selCount > 0 && <span style={{ color: 'var(--ge-accent)' }}>{selCount} lines tagged</span>}
             </div>
             <div className="ge-code-scroll">
               {codeSnippet.map(line => (

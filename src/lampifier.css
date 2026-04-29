@@ -1,34 +1,35 @@
 /* ============================================================
    LAMP-IFIER — Dedicated Stylesheet
-   CAD-Dark aesthetic, zero bleed to existing generator styles
+   Matches DENMO BUILDER design system: amber accent, Space Mono
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Syne:wght@700;800&display=swap');
 
-/* ─── CSS Variables ─── */
+/* ─── Design Tokens (aligned with index.css) ─── */
 :root {
-  --lf-bg:          #080808;
-  --lf-surface:     #0f0f0f;
+  --lf-bg:          #030303;
+  --lf-surface:     #0d0d0d;
   --lf-surface-2:   #161616;
   --lf-surface-3:   #1e1e1e;
-  --lf-border:      #272727;
-  --lf-border-hi:   #3a3a3a;
-  --lf-text-1:      #f0f0f0;
-  --lf-text-2:      #888888;
-  --lf-text-3:      #555555;
-  --lf-accent:      #00ff9d;
-  --lf-accent-dim:  rgba(0, 255, 157, 0.12);
-  --lf-accent-glow: rgba(0, 255, 157, 0.35);
-  --lf-warn:        #ff3b3b;
-  --lf-warn-dim:    rgba(255, 59, 59, 0.12);
-  --lf-orange:      #ff6800;
+  --lf-border:      rgba(255,255,255,0.10);
+  --lf-border-hi:   rgba(255,255,255,0.75);
+  --lf-text-1:      #f0ede8;
+  --lf-text-2:      #6b6b6b;
+  --lf-text-3:      #3a3a3a;
+  --lf-accent:      #f5a623;
+  --lf-accent-dim:  rgba(245,166,35,0.12);
+  --lf-accent-glow: rgba(245,166,35,0.35);
+  --lf-ok:          #00e87c;
+  --lf-warn:        #f5a623;
+  --lf-crit:        #f53b3b;
+  --lf-warn-dim:    rgba(245,59,59,0.12);
+  --lf-orange:      #f5a623;
   --lf-panel-w:     360px;
-  --lf-font:        'IBM Plex Mono', 'Space Mono', monospace;
-  --lf-radius:      0px;
-  --lf-transition:  180ms ease;
+  --lf-font:        'Space Mono', 'Courier New', monospace;
+  --lf-display:     'Syne', sans-serif;
 }
 
-/* ─── Base Reset for Lamp-ifier scope ─── */
+/* ─── Base ─── */
 .lf-root * {
   box-sizing: border-box;
   margin: 0;
@@ -50,9 +51,7 @@
 /* ─── Nav Bar ─── */
 .lf-nav {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 44px;
   background: var(--lf-bg);
   border-bottom: 1px solid var(--lf-border);
@@ -64,14 +63,15 @@
 }
 
 .lf-nav-logo {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
+  font-family: var(--lf-font);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
   color: var(--lf-text-2);
   text-transform: uppercase;
   text-decoration: none;
   margin-right: 32px;
-  transition: color var(--lf-transition);
+  transition: color 0.12s ease;
 }
 .lf-nav-logo:hover { color: var(--lf-text-1); }
 
@@ -83,16 +83,17 @@
 }
 
 .lf-nav-link {
-  font-size: 11px;
+  font-family: var(--lf-font);
+  font-size: 9px;
   font-weight: 400;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   color: var(--lf-text-3);
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
   padding: 4px 0;
   border-bottom: 1px solid transparent;
-  transition: color var(--lf-transition), border-color var(--lf-transition);
+  transition: color 0.12s ease, border-color 0.12s ease;
   margin-right: 24px;
   background: none;
   border-left: none;
@@ -107,13 +108,20 @@
 
 .lf-nav-badge {
   margin-left: auto;
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  color: var(--lf-text-3);
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  color: #000;
+  background: var(--lf-warn);
+  border: 1px solid var(--lf-warn);
+  line-height: 1.6;
 }
 
-/* ─── App Layout ─── */
+/* ─── Layout ─── */
 .lf-layout {
   display: flex;
   height: 100vh;
@@ -145,11 +153,12 @@
 .lf-section:last-child { border-bottom: none; }
 
 .lf-section-header {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--lf-text-3);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--lf-accent);
   text-transform: uppercase;
+  opacity: 0.9;
   margin-bottom: 14px;
   display: flex;
   align-items: center;
@@ -164,7 +173,7 @@
 
 /* ─── Drop Zone ─── */
 .lf-dropzone {
-  border: 1px dashed var(--lf-border-hi);
+  border: 1px dashed rgba(255,255,255,0.25);
   background: var(--lf-surface-2);
   padding: 28px 20px;
   display: flex;
@@ -173,7 +182,7 @@
   justify-content: center;
   gap: 10px;
   cursor: pointer;
-  transition: border-color var(--lf-transition), background var(--lf-transition);
+  transition: border-color 0.12s ease, background 0.12s ease;
   text-align: center;
   min-height: 110px;
 }
@@ -186,13 +195,13 @@
   width: 32px;
   height: 32px;
   color: var(--lf-text-3);
-  transition: color var(--lf-transition);
+  transition: color 0.12s ease;
 }
 .lf-dropzone:hover .lf-dropzone-icon,
 .lf-dropzone.active .lf-dropzone-icon { color: var(--lf-accent); }
 
 .lf-dropzone-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--lf-text-2);
   letter-spacing: 0.08em;
 }
@@ -202,7 +211,7 @@
   letter-spacing: 0.06em;
 }
 .lf-file-name {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--lf-accent);
   letter-spacing: 0.06em;
   word-break: break-all;
@@ -236,7 +245,7 @@
   appearance: none;
   width: 100%;
   height: 2px;
-  background: var(--lf-border-hi);
+  background: rgba(255,255,255,0.15);
   outline: none;
   cursor: pointer;
 }
@@ -248,8 +257,7 @@
   background: var(--lf-accent);
   cursor: pointer;
   border: none;
-  border-radius: 0;
-  transition: transform var(--lf-transition);
+  transition: transform 0.12s ease;
 }
 .lf-range::-webkit-slider-thumb:hover { transform: scale(1.3); }
 .lf-range::-moz-range-thumb {
@@ -257,7 +265,6 @@
   height: 14px;
   background: var(--lf-accent);
   border: none;
-  border-radius: 0;
   cursor: pointer;
 }
 
@@ -271,8 +278,7 @@
   font-size: 13px;
   padding: 0 12px;
   outline: none;
-  transition: border-color var(--lf-transition);
-  border-radius: 0;
+  transition: border-color 0.12s ease;
 }
 .lf-input:focus { border-color: var(--lf-accent); }
 .lf-input:disabled {
@@ -286,8 +292,8 @@
   gap: 8px;
 }
 .lf-lock-badge {
-  font-size: 9px;
-  letter-spacing: 0.1em;
+  font-size: 8px;
+  letter-spacing: 0.15em;
   color: var(--lf-text-3);
   border: 1px solid var(--lf-border);
   padding: 2px 6px;
@@ -295,7 +301,7 @@
   white-space: nowrap;
 }
 
-/* ─── Toggle Row ─── */
+/* ─── Toggle ─── */
 .lf-toggle-row {
   display: flex;
   align-items: center;
@@ -303,8 +309,8 @@
   margin-bottom: 14px;
 }
 .lf-toggle-label {
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-size: 9px;
+  letter-spacing: 0.15em;
   color: var(--lf-text-2);
   text-transform: uppercase;
 }
@@ -320,7 +326,7 @@
   inset: 0;
   background: var(--lf-surface-3);
   border: 1px solid var(--lf-border);
-  transition: background var(--lf-transition), border-color var(--lf-transition);
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .lf-toggle input:checked ~ .lf-toggle-track {
   background: var(--lf-accent-dim);
@@ -333,14 +339,14 @@
   width: 12px;
   height: 12px;
   background: var(--lf-text-3);
-  transition: transform var(--lf-transition), background var(--lf-transition);
+  transition: transform 0.12s ease, background 0.12s ease;
 }
 .lf-toggle input:checked ~ .lf-toggle-knob {
   transform: translateX(18px);
   background: var(--lf-accent);
 }
 
-/* ─── Cylinder Info Cards ─── */
+/* ─── Info Cards ─── */
 .lf-cut-card {
   background: var(--lf-surface-2);
   border: 1px solid var(--lf-border);
@@ -358,42 +364,41 @@
 }
 .lf-cut-dot.top { background: var(--lf-accent); }
 .lf-cut-dot.bottom { background: var(--lf-orange); }
-.lf-cut-info {}
 .lf-cut-name {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--lf-text-1);
   text-transform: uppercase;
   margin-bottom: 2px;
 }
 .lf-cut-spec {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--lf-text-3);
   letter-spacing: 0.06em;
 }
 
-/* ─── Status Bar ─── */
+/* ─── Status ─── */
 .lf-status {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 0;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--lf-text-3);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .lf-status-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: var(--lf-border);
+  background: rgba(255,255,255,0.15);
   flex-shrink: 0;
-  transition: background var(--lf-transition);
+  transition: background 0.12s ease;
 }
-.lf-status-dot.ready { background: var(--lf-accent); box-shadow: 0 0 6px var(--lf-accent-glow); }
-.lf-status-dot.processing { background: var(--lf-orange); animation: lf-pulse 1s ease-in-out infinite; }
-.lf-status-dot.error { background: var(--lf-warn); }
+.lf-status-dot.ready { background: var(--lf-ok); box-shadow: 0 0 6px rgba(0,232,124,0.4); }
+.lf-status-dot.processing { background: var(--lf-accent); animation: lf-pulse 1s ease-in-out infinite; }
+.lf-status-dot.error { background: var(--lf-crit); }
 
 @keyframes lf-pulse {
   0%, 100% { opacity: 1; }
@@ -406,27 +411,27 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 44px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 14px;
   background: transparent;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-border-hi);
   color: var(--lf-text-1);
   font-family: var(--lf-font);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color var(--lf-transition), background var(--lf-transition), color var(--lf-transition);
-  border-radius: 0;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
   margin-bottom: 10px;
 }
 .lf-btn:last-child { margin-bottom: 0; }
 .lf-btn:hover:not(:disabled) {
+  background: var(--lf-accent);
   border-color: var(--lf-accent);
-  background: var(--lf-accent-dim);
-  color: var(--lf-accent);
+  color: #000;
 }
+.lf-btn:active { transform: scale(0.98); }
 .lf-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -437,8 +442,8 @@
   color: #000;
 }
 .lf-btn.primary:hover:not(:disabled) {
-  background: #00ffb0;
-  border-color: #00ffb0;
+  background: #f5a623;
+  border-color: #f5a623;
   color: #000;
 }
 .lf-btn-arrow {
@@ -446,11 +451,10 @@
   line-height: 1;
 }
 
-/* ─── Retopology Button ─── */
+/* Retopo button */
 .lf-btn-retopo {
-  background: transparent;
-  border-color: #00c8ff;
-  color: #00c8ff;
+  border-color: var(--lf-accent);
+  color: var(--lf-accent);
   position: relative;
   overflow: hidden;
 }
@@ -458,58 +462,49 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(0, 200, 255, 0.08), rgba(157, 0, 255, 0.06));
+  background: linear-gradient(135deg, rgba(245,166,35,0.08), rgba(245,166,35,0.04));
   opacity: 0;
-  transition: opacity var(--lf-transition);
+  transition: opacity 0.12s ease;
 }
-.lf-btn-retopo:hover:not(:disabled)::before {
-  opacity: 1;
-}
+.lf-btn-retopo:hover:not(:disabled)::before { opacity: 1; }
 .lf-btn-retopo:hover:not(:disabled) {
-  border-color: #00e0ff;
-  color: #00e0ff;
+  border-color: var(--lf-accent);
+  color: var(--lf-accent);
   background: transparent;
-  box-shadow: 0 0 16px rgba(0, 200, 255, 0.15), inset 0 0 24px rgba(0, 200, 255, 0.05);
+  box-shadow: 0 0 16px rgba(245,166,35,0.12);
 }
-.lf-btn-retopo:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.lf-btn-retopo .lf-btn-arrow {
-  color: #00c8ff;
-}
+.lf-btn-retopo .lf-btn-arrow { color: var(--lf-accent); }
 
 /* ─── Safety Warning ─── */
 .lf-warning {
   background: var(--lf-warn-dim);
-  border: 1px solid var(--lf-warn);
+  border: 1px solid var(--lf-crit);
   padding: 14px 16px;
   display: flex;
   gap: 12px;
 }
 .lf-warning-icon {
-  color: var(--lf-warn);
+  color: var(--lf-crit);
   font-size: 16px;
   flex-shrink: 0;
   margin-top: 1px;
 }
-.lf-warning-body {}
 .lf-warning-title {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.15em;
-  color: var(--lf-warn);
+  color: var(--lf-crit);
   text-transform: uppercase;
   margin-bottom: 6px;
 }
 .lf-warning-text {
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.65;
   color: #e87070;
   letter-spacing: 0.04em;
 }
 
-/* ─── Right Panel / Viewport ─── */
+/* ─── Viewport ─── */
 .lf-viewport {
   flex: 1;
   position: relative;
@@ -536,23 +531,24 @@
 .lf-empty-icon {
   width: 56px;
   height: 56px;
-  color: var(--lf-border-hi);
+  color: rgba(255,255,255,0.15);
 }
 .lf-empty-title {
-  font-size: 13px;
+  font-family: var(--lf-font);
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
   color: var(--lf-text-3);
   text-transform: uppercase;
 }
 .lf-empty-sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--lf-text-3);
   letter-spacing: 0.06em;
   opacity: 0.6;
 }
 
-/* ─── Viewport corner labels ─── */
+/* ─── Corner Labels ─── */
 .lf-corner-label {
   position: absolute;
   font-size: 9px;
@@ -571,7 +567,7 @@
 .lf-processing-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(8,8,8,0.8);
+  background: rgba(3,3,3,0.8);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -585,12 +581,11 @@
   height: 40px;
   border: 2px solid var(--lf-border);
   border-top-color: var(--lf-accent);
-  border-radius: 50%;
   animation: lf-spin 0.8s linear infinite;
 }
 @keyframes lf-spin { to { transform: rotate(360deg); } }
 .lf-processing-text {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.15em;
   color: var(--lf-accent);
   text-transform: uppercase;
@@ -602,10 +597,10 @@
   bottom: 24px;
   right: 24px;
   background: var(--lf-surface-2);
-  border: 1px solid var(--lf-warn);
+  border: 1px solid var(--lf-crit);
   padding: 14px 18px;
-  font-size: 11px;
-  color: var(--lf-warn);
+  font-size: 10px;
+  color: var(--lf-crit);
   letter-spacing: 0.06em;
   z-index: 200;
   max-width: 320px;
