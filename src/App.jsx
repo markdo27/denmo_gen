@@ -105,6 +105,14 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       const posAttr = geo.attributes.position;
       const vtx     = new THREE.Vector3();
       const CAP_R_THRESH = 0.01;
+      // LatheGeometry topology: (radialSegments+1) vertices per profile ring.
+      // The last column (column N) is coincident with column 0 at theta=2pi,
+      // but due to floating-point sin(2pi) != 0, atan2 returns a slightly
+      // different angle. We record the first column's final positions and
+      // overwrite the last column after the modifier pass.
+      const N = params.radialSegments;
+      const vertsPerRing = N + 1;             // LatheGeometry always N+1
+      const profileRings = points.length;     // one ring per 2D profile point
 
       for (let i = 0; i < posAttr.count; i++) {
         vtx.fromBufferAttribute(posAttr, i);
@@ -117,7 +125,9 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
           continue;
         }
 
-        // Raw cylindrical angle — applyRadiusModifiers handles all mirror folding
+        // Raw cylindrical angle — applyRadiusModifiers handles all mirror folding.
+        // The last column's atan2 may differ by ~1e-16 from 0 due to sin(2pi)
+        // floating-point error. The seam-weld pass below corrects this.
         const rawAngle   = Math.atan2(vtx.z, vtx.x);
         const twistYNorm = vtx.y / params.height;
 
@@ -129,6 +139,23 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
 
         posAttr.setXYZ(i, r * Math.cos(finalAngle), vtx.y, r * Math.sin(finalAngle));
       }
+
+      // ── Seam-weld post-pass ───────────────────────────────────────────────
+      // LatheGeometry stores rings as row-major: vertex[ring * vertsPerRing + col].
+      // Column 0 (theta=0) and column N (theta=2pi) must be identical.
+      // Copy column-0 XYZ into column-N for every profile ring to guarantee
+      // a closed manifold with zero seam gap.
+      for (let ring = 0; ring < profileRings; ring++) {
+        const col0 = ring * vertsPerRing + 0;
+        const colN = ring * vertsPerRing + N;
+        posAttr.setXYZ(
+          colN,
+          posAttr.getX(col0),
+          posAttr.getY(col0),   // Y must also match (profile height same)
+          posAttr.getZ(col0),
+        );
+      }
+      posAttr.needsUpdate = true;
       geo.computeVertexNormals();
     }
 
@@ -136,7 +163,6 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     // Ensures cap center vertices converge to exact axis and caps are flat.
     if (params.closeBottom || params.closeTop || params.solidVaseMode) {
       const posAttr = geo.attributes.position;
-      const rSeg    = params.radialSegments + 1;  // verts per ring in LatheGeometry
 
       // Force ALL center-axis ring vertices to (0, y, 0).
       // These come from profile points with r=0.
@@ -150,6 +176,56 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       }
       posAttr.needsUpdate = true;
       geo.computeVertexNormals();
+    }
+
+    // ── Self-intersection scan ────────────────────────────────────────────
+    // Detect rings where the modifier has pushed r so far inward/outward
+    // that adjacent vertical faces overlap.  We sample N evenly-spaced
+    // angles and check whether the radius profile changes sign (goes through
+    // zero) at any height step — that is the exact topological condition
+    // for a self-intersecting lathe surface.
+    //
+    // Returns a geometry-level flag: geo.userData.hasOverlap (boolean)
+    // and geo.userData.overlapDetail (string) consumed by the UI.
+    {
+      const posAttr  = geo.attributes.position;
+      const N        = params.radialSegments;
+      const vSegments = params.verticalSegments || 100;
+      const SAMPLE_ANGLES = 8;   // 8 angular samples is sufficient for diagnosis
+      let hasOverlap    = false;
+      let firstBadAngle = null;
+      let firstBadT     = null;
+
+      outerScan: for (let si = 0; si < SAMPLE_ANGLES; si++) {
+        const angle = (si / SAMPLE_ANGLES) * Math.PI * 2;
+        let prevR = null;
+
+        for (let vi = 0; vi <= vSegments; vi++) {
+          const t       = vi / vSegments;
+          const evalT   = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
+          const baseR   = getSmoothedProfileRadius(evalT, params, customProfileData);
+          const r       = applyRadiusModifiers(angle, t, t * params.height, baseR, params, rdMap, voronoiMap);
+
+          if (prevR !== null) {
+            // If consecutive rings' modifier pushes r past the OPPOSITE profile
+            // radius at the same height, the surface self-intersects.
+            // Simplified check: if r < rMin * 0.5 (below the floor clamp threshold),
+            // the clamp is being hit hard — that ring is degenerate.
+            if (r <= (params.rMin ?? 0.05) * 1.01) {
+              hasOverlap    = true;
+              firstBadAngle = (angle * 180 / Math.PI).toFixed(1);
+              firstBadT     = (t * 100).toFixed(0);
+              break outerScan;
+            }
+          }
+          prevR = r;
+        }
+      }
+
+      geo.userData.hasOverlap    = hasOverlap;
+      geo.userData.overlapDetail = hasOverlap
+        ? `Self-intersection near angle ${firstBadAngle}\u00b0 / height ${firstBadT}%`
+        : null;
     }
 
     // ── Subdivision surface pass ──────────────────────────────────────────
@@ -846,6 +922,44 @@ function OverhangWarningPanel({ report }) {
 }
 
 // ============================================================================
+// OVERLAP / SELF-INTERSECTION WARNING PANEL
+// Appears when applyRadiusModifiers pushes the surface inward past rMin,
+// indicating that adjacent faces are overlapping in world space.
+// ============================================================================
+function OverlapWarningPanel({ report }) {
+  if (!report) return null;
+
+  return (
+    <div className="overhang-panel overhang-critical" role="alert" aria-live="assertive">
+      <div className="overhang-header" style={{ cursor: 'default' }}>
+        <span className="overhang-icon"><AlertTriangle size={13} /></span>
+        <span className="overhang-title">GEOMETRY OVERLAP</span>
+      </div>
+      <div className="overhang-body">
+        <div className="overhang-zones" style={{ fontFamily: 'monospace', fontSize: '10px', lineHeight: 1.6 }}>
+          {report.detail}
+        </div>
+        <div className="overhang-suggestions">
+          <div className="overhang-suggestions-title">FIX:</div>
+          <div className="overhang-tip">
+            <span className="tip-param">Rib Depth</span>
+            <span className="tip-arrow">→</span>
+            <span className="tip-val">Reduce</span>
+            <span className="tip-reason">modifier is inverting the surface radius</span>
+          </div>
+          <div className="overhang-tip">
+            <span className="tip-param">Base Radius</span>
+            <span className="tip-arrow">→</span>
+            <span className="tip-val">Increase</span>
+            <span className="tip-reason">gives modifiers more headroom before inversion</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // EXPORT GATE MODAL
 // ============================================================================
 function ExportGateModal({ onConfirm, onCancel, report }) {
@@ -1154,6 +1268,33 @@ export default function App() {
     params.crossSection, params.mirrorX, params.mirrorZ,
     params.layerHeight, params.bedX, params.bedY,
     customProfileData, rdMap, voronoiMap,
+  ]);
+
+  // ── Overlap report — reads geo.userData flags written by the self-intersection scan
+  // The geometry object is stable between renders (useMemo in Lamp), so we read
+  // its userData through the meshRef after each render via a layout effect.
+  const [overlapReport, setOverlapReport] = useState(null);
+
+  useEffect(() => {
+    // Defer one frame so the Lamp useMemo has committed its geometry
+    const id = requestAnimationFrame(() => {
+      const geo = meshRef.current?.geometry;
+      if (!geo) { setOverlapReport(null); return; }
+      setOverlapReport(
+        geo.userData.hasOverlap
+          ? { detail: geo.userData.overlapDetail }
+          : null
+      );
+    });
+    return () => cancelAnimationFrame(id);
+  }, [
+    // Re-check whenever any modifier that could cause self-intersection changes
+    params.ribDepth, params.ribFreq, params.ribProfile, params.ribTension,
+    params.pedestalDepth, params.bambooDepth, params.diamondDepth,
+    params.noiseDepth, params.verticalRippleDepth,
+    params.bottomRadius, params.midRadius, params.topRadius,
+    params.height, params.verticalProfile, params.mirrorY,
+    params.crossSection, rdMap, voronoiMap, customProfileData,
   ]);
 
   // ── Helper: remove degenerate triangles (near-zero area) from geometry ──
@@ -1538,6 +1679,9 @@ export default function App() {
 
         {/* Overhang warning panel — sits between header and divider */}
         <OverhangWarningPanel report={overhangReport} />
+
+        {/* Overlap / self-intersection warning — geometry topology error */}
+        <OverlapWarningPanel report={overlapReport} />
 
         {/* Divider */}
         <div className="sidebar-divider" />

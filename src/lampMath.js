@@ -313,5 +313,15 @@ export function applyRadiusModifiers(evalAngle, evalTwistY, spiralY, baseR, para
     );
   }
 
-  return r;
+  // ── Radius floor: prevent inversion / self-intersection ─────────────────
+  //
+  // When a modifier (rib, bamboo, noise, etc.) pushes r below zero the lathe
+  // surface folds through itself, creating coplanar/overlapping faces.
+  //
+  // The minimum safe radius is derived from the wall thickness: a surface
+  // point cannot move inward past half the local wall thickness without
+  // intersecting the opposite wall face. We clamp to 0.5 mm (0.05 cm)
+  // as an absolute floor — any smaller and the triangle degenerates.
+  const rMin = params.rMin ?? 0.05;   // configurable, default 0.5 mm
+  return Math.max(rMin, r);
 }
