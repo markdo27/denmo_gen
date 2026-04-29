@@ -1,57 +1,77 @@
+import { useMemo } from 'react';
 import { useStore } from '../../store';
 import { MODULES } from '../../utils/constants';
 import UndoRedo from '../controls/UndoRedo';
 import ToggleSwitch from '../controls/ToggleSwitch';
-import { Orbit, Grid3X3 } from 'lucide-react';
+import { validateTensegrity, validateAcoustic } from '../../math/validation';
+import { Orbit } from 'lucide-react';
 
 /**
- * Top application bar: title, module tabs, blueprint toggle, undo/redo.
+ * Top application bar — identity + tools only.
+ * Module navigation has been promoted into the left panel header.
+ *
+ * Contains:
+ *   Left:  Logo wordmark
+ *   Right: Status capsule (always-visible system validity) + Blueprint toggle + Undo/Redo
  */
 export default function TopBar() {
-  const activeModule = useStore((s) => s.activeModule);
-  const setActiveModule = useStore((s) => s.setActiveModule);
-  const blueprintMode = useStore((s) => s.blueprintMode);
+  const blueprintMode     = useStore((s) => s.blueprintMode);
   const toggleBlueprintMode = useStore((s) => s.toggleBlueprintMode);
+  const activeModule      = useStore((s) => s.activeModule);
+  const tensegrity        = useStore((s) => s.tensegrity);
+  const acoustic          = useStore((s) => s.acoustic);
+
+  // Derive validity from the active module — single responsibility
+  const isValid = useMemo(() => {
+    if (activeModule === MODULES.TENSEGRITY) {
+      return validateTensegrity(tensegrity).valid;
+    }
+    return validateAcoustic(acoustic).valid;
+  }, [activeModule, tensegrity, acoustic]);
 
   return (
     <header className="top-bar">
       <div className="top-bar__left">
         <div className="top-bar__logo">
-          <Orbit size={18} className="top-bar__logo-icon" />
+          <Orbit size={16} className="top-bar__logo-icon" />
           <span className="top-bar__title">LEVITATION ENGINE</span>
-          <span className="top-bar__version">v1.0</span>
+          <span className="top-bar__version">v2</span>
         </div>
       </div>
 
-      <nav className="top-bar__tabs">
-        <button
-          className={`top-bar__tab ${activeModule === MODULES.TENSEGRITY ? 'top-bar__tab--active' : ''}`}
-          onClick={() => setActiveModule(MODULES.TENSEGRITY)}
-          type="button"
-        >
-          <span className="top-bar__tab-label">01</span>
-          TENSEGRITY
-        </button>
-        <button
-          className={`top-bar__tab ${activeModule === MODULES.ACOUSTIC ? 'top-bar__tab--active' : ''}`}
-          onClick={() => setActiveModule(MODULES.ACOUSTIC)}
-          type="button"
-        >
-          <span className="top-bar__tab-label">02</span>
-          ACOUSTIC
-        </button>
-      </nav>
-
       <div className="top-bar__right">
+        {/* System status — visible regardless of scroll position */}
+        <StatusCapsule valid={isValid} />
+
+        <div className="top-bar__divider" />
+
         <ToggleSwitch
           label="BLUEPRINT"
           checked={blueprintMode}
           onChange={toggleBlueprintMode}
           accentClass="toggle-switch--blueprint"
         />
+
         <div className="top-bar__divider" />
         <UndoRedo />
       </div>
     </header>
+  );
+}
+
+/**
+ * Pill-shaped system validity indicator.
+ * Renders: ● STABLE (green), ● INVALID (pulsing red), or ● — (neutral on mount).
+ */
+function StatusCapsule({ valid }) {
+  return (
+    <div
+      className={`status-capsule ${valid ? '' : 'status-capsule--invalid'}`}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="status-capsule__dot" />
+      {valid ? 'STABLE' : 'INVALID'}
+    </div>
   );
 }

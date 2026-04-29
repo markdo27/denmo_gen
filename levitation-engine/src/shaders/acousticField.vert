@@ -1,40 +1,62 @@
 // Acoustic Field Vertex Shader
-// Positions instanced spheres in 3D space and passes data to fragment shader
+// Computes the analytic standing-wave amplitude envelope per instance.
+//
+// Physics:
+//   Two counter-propagating waves:  P₁ = A·sin(ky − ωt),  P₂ = A·sin(k(D−y) − ωt + φ)
+//
+//   By sum-to-product identity:
+//     P(y,t) = 2A · cos(ky − kD/2 − φ/2) · sin(kD/2 − ωt + φ/2)
+//
+//   Amplitude envelope (levitation trap positions):
+//     E(y) = 2A · cos(ky − kD/2 − φ/2)          ← spatial, passed to fragment
+//
+//   Temporal modulation (global oscillation):
+//     T(t) = sin(kD/2 − ωt + φ/2)               ← scalar, modulates alpha/size
+//
+// The envelope E(y) is computed per-instance on the GPU.
+// u_time is in seconds — no scaling factor applied (was erroneously ×0.001).
 
 precision highp float;
 
-// Instance attribute: position in the acoustic field
+// Per-instance attribute: position in the acoustic field
 attribute vec3 instancePosition;
 
 // Uniforms
 uniform float u_frequency;    // kHz
-uniform float u_amplitude;    // 0-1
-uniform float u_distance;     // meters between transducer arrays
+uniform float u_amplitude;    // 0–1
+uniform float u_distance;     // metres between transducer arrays
 uniform float u_phase;        // radians
-uniform float u_time;         // seconds
-uniform float u_speed;        // speed of sound (343 m/s)
+uniform float u_time;         // seconds (no conversion needed)
+uniform float u_speed;        // speed of sound [m/s]
 
 // Passed to fragment shader
-varying float v_pressure;
-varying vec3 v_worldPos;
+varying float v_envelope;     // amplitude envelope  E(y) ∈ [−2A, +2A]
+varying float v_temporal;     // temporal scalar     T(t) ∈ [−1, +1]
+varying vec3  v_worldPos;
 varying float v_normalizedY;
 
 void main() {
-  vec3 pos = position * 0.06 + instancePosition; // Scale down sphere + offset
+  vec3 pos = position * 0.06 + instancePosition;
 
-  // Compute standing wave pressure at this instance position
-  float f = u_frequency * 1000.0;
-  float k = 6.283185 * f / u_speed;
-  float omega = 6.283185 * f;
-  float y = instancePosition.y;
+  // ── Wave parameters ──────────────────────────────────────────────────────
+  float f     = u_frequency * 1000.0;             // kHz → Hz
+  float k     = 6.2831853 * f / u_speed;          // wavenumber  [rad/m]
+  float omega = 6.2831853 * f;                    // angular freq [rad/s]
+  float y     = instancePosition.y;
 
-  float p1 = u_amplitude * sin(k * y - omega * u_time * 0.001);
-  float p2 = u_amplitude * sin(k * (u_distance - y) - omega * u_time * 0.001 + u_phase);
-  v_pressure = p1 + p2;
+  // ── Analytic decomposition ───────────────────────────────────────────────
+  float halfKD   = k * u_distance * 0.5;
+  float halfPhi  = u_phase * 0.5;
 
-  v_worldPos = instancePosition;
-  v_normalizedY = y / max(u_distance, 0.001);
+  // Envelope: E(y) = 2A · cos(ky − kD/2 − φ/2)
+  v_envelope = 2.0 * u_amplitude * cos(k * y - halfKD - halfPhi);
+
+  // Temporal: T(t) = sin(kD/2 − ωt + φ/2)   — u_time already in seconds
+  v_temporal = sin(halfKD - omega * u_time + halfPhi);
+
+  v_worldPos     = instancePosition;
+  v_normalizedY  = y / max(u_distance, 0.001);
 
   vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position = projectionMatrix * mvPosition;
+  gl_Position     = projectionMatrix * mvPosition;
 }

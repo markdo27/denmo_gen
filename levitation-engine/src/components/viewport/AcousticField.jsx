@@ -4,7 +4,8 @@ import { useFrame } from '@react-three/fiber';
 import { useStore } from '../../store';
 import { generateFieldPositions } from '../../math/acousticWave';
 import { validateAcoustic } from '../../math/validation';
-import { degToRad } from '../../utils/formatters';
+// degToRad no longer needed here — the shader receives u_phase in radians
+// which is still computed via the uniform (kept below for explicit contract).
 import { SPEED_OF_SOUND } from '../../utils/constants';
 import BoundingBox from './BoundingBox';
 
@@ -54,28 +55,32 @@ export default function AcousticField() {
     meshRef.current.count = instanceCount;
   }, [positions, instanceCount]);
 
-  // Shader uniforms
+  // Shader uniforms — created once, mutated every frame in useFrame.
+  // All six uniforms are refreshed in useFrame so the object stays in sync
+  // even if constants change (e.g. temperature-adjusted speed of sound).
   const uniforms = useMemo(
     () => ({
       u_frequency: { value: acoustic.frequency },
       u_amplitude: { value: acoustic.amplitude },
-      u_distance: { value: acoustic.transducerDistance },
-      u_phase: { value: degToRad(acoustic.phaseShift) },
-      u_time: { value: 0 },
-      u_speed: { value: SPEED_OF_SOUND },
+      u_distance:  { value: acoustic.transducerDistance },
+      u_phase:     { value: (acoustic.phaseShift * Math.PI) / 180 },
+      u_time:      { value: 0 },
+      u_speed:     { value: SPEED_OF_SOUND },
     }),
     [] // Only create once — we update values in useFrame
   );
 
-  // Update uniforms every frame (GPU-side, no geometry recreation)
+  // Update uniforms every frame — GPU-side, no geometry recreation.
+  // u_speed is included so a future temperature-adjusted value is auto-synced.
   useFrame((state) => {
     if (!materialRef.current) return;
     const mat = materialRef.current;
     mat.uniforms.u_frequency.value = acoustic.frequency;
     mat.uniforms.u_amplitude.value = acoustic.amplitude;
-    mat.uniforms.u_distance.value = acoustic.transducerDistance;
-    mat.uniforms.u_phase.value = degToRad(acoustic.phaseShift);
-    mat.uniforms.u_time.value = state.clock.elapsedTime;
+    mat.uniforms.u_distance.value  = acoustic.transducerDistance;
+    mat.uniforms.u_phase.value     = (acoustic.phaseShift * Math.PI) / 180;
+    mat.uniforms.u_time.value      = state.clock.elapsedTime;  // seconds, no scaling
+    mat.uniforms.u_speed.value     = SPEED_OF_SOUND;
   });
 
   if (!validation.valid || instanceCount === 0) {

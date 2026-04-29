@@ -462,45 +462,150 @@ export function computeLighterCavityGeometry(params, rdMap, voronoiMap, customPr
     indices.push(floorBase, floorBase + 1 + next, floorBase + 1 + p);
   }
 
-  // ── 3. Top annular cap ──────────────────────────────────────────────
-  const radialSegs = params.radialSegments || 48;
-  const lipBase = positions.length / 3;
-  const twistYNorm = 1.0;
+  // ── 3. Beveled Top Annular Cap ──────────────────────────────────────────
+  // The cap is built with three optional bevel stages:
+  //   outerBevel: chamfer on the outer lamp-wall rim (inward + down)
+  //   mid flat:   flat horizontal ring between the two bevels
+  //   innerBevel: chamfer on the inner lighter-hole rim (outward + down)
+  //
+  // Each bevel is tessellated using bevelSegs steps; the flat mid section
+  // connects the two via a simple quad ring.
+  //
+  const radialSegs   = params.radialSegments || 48;
+  const bevelSegs    = 6; // tessellation steps per chamfer
+  const twistYNorm   = 1.0;
+  const evalT        = mirrorY ? 0.0 : 1.0;
+  const actualBaseR  = getSmoothedProfileRadius(evalT, params, customProfileData);
+  const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
 
-  const t = 1.0;
-  const evalT = mirrorY ? 0.0 : 1.0;
-  const actualBaseR = getSmoothedProfileRadius(evalT, params, customProfileData);
+  // Bevel sizes (in cm, clamped sensibly)
+  const bO = Math.max(0, params.topCapBevelOuter ?? 0.3); // outer bevel width
+  const bM = Math.max(0, params.topCapBevelMid   ?? 0.2); // mid drop (wall face height)
+  const bI = Math.max(0, params.topCapBevelInner ?? 0.2); // inner bevel width
 
+  // Helper: get outer lamp radius at angle with all modifiers applied
+  const outerR = (angle) => {
+    const r = applyRadiusModifiers(angle, twistYNorm, height, actualBaseR, params, rdMap, voronoiMap);
+    const fa = angle + sampleTwistY * (params.twistAngle || 0);
+    return { x: r * Math.cos(fa), z: r * Math.sin(fa) };
+  };
+
+  // Build outer-bevel ring vertices.
+  // The outer bevel sweeps from (outerR, topY) inward-and-down to (outerR - bO, topY - bO).
+  // Each step s ∈ [0, bevelSegs] is a full radial ring.
+  const capRingStarts = []; // vertex index of the first vert in each ring
+
+  // ── Outer bevel rings (from rim to flat region) ────────────────────────
+  for (let s = 0; s <= bevelSegs; s++) {
+    capRingStarts.push(positions.length / 3);
+    const frac = s / bevelSegs;
+    const yOff = -bO * Math.sin(frac * Math.PI * 0.5);     // quarter-circle drop
+    const rOff =  bO * (1 - Math.cos(frac * Math.PI * 0.5)); // quarter-circle inset
+    const ringY = topY + yOff;
+    for (let i = 0; i < radialSegs; i++) {
+      const angle = (i / radialSegs) * Math.PI * 2;
+      const { x, z } = outerR(angle);
+      // Scale direction inward by rOff (approximate: subtract rOff along radial)
+      const len = Math.sqrt(x * x + z * z) || 1;
+      positions.push(x - (x / len) * rOff, ringY, z - (z / len) * rOff);
+    }
+  }
+
+  // Quads between outer bevel rings
+  for (let s = 0; s < bevelSegs; s++) {
+    const ra = capRingStarts[s];
+    const rb = capRingStarts[s + 1];
+    for (let i = 0; i < radialSegs; i++) {
+      const next = (i + 1) % radialSegs;
+      indices.push(ra + i, ra + next, rb + i);
+      indices.push(ra + next, rb + next, rb + i);
+    }
+  }
+
+  // At this point the rim of the flat section sits at:
+  //   y  = topY - bO,  r ≈ outerR - bO
+  // ── Mid wall drop (vertical face) ──────────────────────────────────────
+  if (bM > 0) {
+    const midTopRing = capRingStarts[bevelSegs];
+    const midBotStart = positions.length / 3;
+    capRingStarts.push(midBotStart);
+    const midY = topY - bO - bM;
+    for (let i = 0; i < radialSegs; i++) {
+      const angle = (i / radialSegs) * Math.PI * 2;
+      const { x, z } = outerR(angle);
+      const len = Math.sqrt(x * x + z * z) || 1;
+      const rOff2 = bO;
+      positions.push(x - (x / len) * rOff2, midY, z - (z / len) * rOff2);
+    }
+    for (let i = 0; i < radialSegs; i++) {
+      const next = (i + 1) % radialSegs;
+      indices.push(midTopRing + i, midTopRing + next, midBotStart + i);
+      indices.push(midTopRing + next, midBotStart + next, midBotStart + i);
+    }
+  }
+
+  // The flat ring (horizontal) connects the outer edge to the inner edge.
+  // Its Y level is topY - bO - bM.
+  const flatY      = topY - bO - bM;
+  const flatOutRingStart = positions.length / 3;
+  // Outer edge of the flat ring (same X,Z as bottom of outer bevel/mid)
   for (let i = 0; i < radialSegs; i++) {
     const angle = (i / radialSegs) * Math.PI * 2;
-    const baseR = actualBaseR;
-    const r = applyRadiusModifiers(angle, twistYNorm, height, baseR, params, rdMap, voronoiMap);
-
-    const sampleTwistY = (params.mirrorY && twistYNorm > 0.5) ? 1.0 - twistYNorm : twistYNorm;
-    const finalAngle = angle + sampleTwistY * (params.twistAngle || 0);
-
-    positions.push(
-      r * Math.cos(finalAngle),
-      topY,
-      r * Math.sin(finalAngle),
-    );
+    const { x, z } = outerR(angle);
+    const len = Math.sqrt(x * x + z * z) || 1;
+    const rOff = bO;
+    positions.push(x - (x / len) * rOff, flatY, z - (z / len) * rOff);
   }
 
+  // Inner edge of the flat ring (at the lighter hole outer profile + bI inset)
+  const flatInRingStart = positions.length / 3;
   for (let p = 0; p < N; p++) {
-    positions.push(cavProfile[p].x * scale, topY, cavProfile[p].z * scale);
+    positions.push(cavProfile[p].x * scale, flatY, cavProfile[p].z * scale);
   }
 
-  const outerStart = lipBase;
-  const innerStart = lipBase + radialSegs;
-
+  // Flat ring quads (outer→inner)
   for (let i = 0; i < Math.max(radialSegs, N); i++) {
     const oIdx  = Math.floor((i / Math.max(radialSegs, N)) * radialSegs) % radialSegs;
     const oNext = (oIdx + 1) % radialSegs;
     const iIdx  = Math.floor((i / Math.max(radialSegs, N)) * N) % N;
     const iNext = (iIdx + 1) % N;
+    indices.push(flatOutRingStart + oIdx, flatOutRingStart + oNext, flatInRingStart + iIdx);
+    indices.push(flatOutRingStart + oNext, flatInRingStart + iNext, flatInRingStart + iIdx);
+  }
 
-    indices.push(outerStart + oIdx, outerStart + oNext, innerStart + iIdx);
-    indices.push(outerStart + oNext, innerStart + iNext, innerStart + iIdx);
+  // ── Inner bevel rings (from flat region rim down to cavity top) ────────
+  const innerBevelRings = []; // vertex index of each bevel ring
+  for (let s = 0; s <= bevelSegs; s++) {
+    innerBevelRings.push(positions.length / 3);
+    const frac = s / bevelSegs;
+    const yOff = -(bI) * Math.sin(frac * Math.PI * 0.5);
+    const rOff =  (bI) * (1 - Math.cos(frac * Math.PI * 0.5));
+    const ringY = flatY + yOff;
+    for (let p = 0; p < N; p++) {
+      const cx = cavProfile[p].x * scale;
+      const cz = cavProfile[p].z * scale;
+      const len = Math.sqrt(cx * cx + cz * cz) || 1;
+      // Inset along radial direction toward center
+      positions.push(cx - (cx / len) * rOff, ringY, cz - (cz / len) * rOff);
+    }
+  }
+
+  // Connect flat inner edge to first inner bevel ring
+  for (let p = 0; p < N; p++) {
+    const next = (p + 1) % N;
+    indices.push(flatInRingStart + p, innerBevelRings[0] + p, flatInRingStart + next);
+    indices.push(innerBevelRings[0] + p, innerBevelRings[0] + next, flatInRingStart + next);
+  }
+
+  // Quads between inner bevel rings
+  for (let s = 0; s < bevelSegs; s++) {
+    const ra = innerBevelRings[s];
+    const rb = innerBevelRings[s + 1];
+    for (let p = 0; p < N; p++) {
+      const next = (p + 1) % N;
+      indices.push(ra + p, rb + p, ra + next);
+      indices.push(rb + p, rb + next, ra + next);
+    }
   }
 
   const geo = new THREE.BufferGeometry();
@@ -531,6 +636,7 @@ function LighterCavityMesh({ params, rdMap, voronoiMap, customProfileData }) {
     params.diamondFreq, params.diamondDepth,
     params.verticalRipples, params.verticalRippleDepth,
     params.bambooSteps, params.bambooDepth, params.bambooVerticalFreq,
+    params.topCapBevelOuter, params.topCapBevelMid, params.topCapBevelInner,
     rdMap, voronoiMap, customProfileData, params.profileSmoothing, params.verticalProfile
   ]);
 
@@ -539,13 +645,13 @@ function LighterCavityMesh({ params, rdMap, voronoiMap, customProfileData }) {
   return (
     <mesh geometry={geometry}>
       <meshPhysicalMaterial
-        color="#f59e0b"
+        color="#d0d0c8"
         transparent
-        opacity={0.4}
-        metalness={0}
-        roughness={0.8}
+        opacity={0.85}
+        metalness={0.05}
+        roughness={0.35}
         side={THREE.DoubleSide}
-        depthWrite={false}
+        depthWrite={true}
       />
     </mesh>
   );
@@ -949,6 +1055,9 @@ export default function App() {
       lighterHolePreset:    { options: { 'Standard (25×14×80mm)': 'standard', 'Mini (21×11×63mm)': 'mini' }, label: 'Lighter Size' },
       lighterHoleTolerance: { value: 0.4, min: 0.1, max: 1.0, step: 0.05, label: 'Tolerance (mm)' },
       lighterHoleFloor:     { value: 2.5, min: 1.0, max: 8.0, step: 0.5,  label: 'Floor Thickness (mm)' },
+      topCapBevelOuter:     { value: 0.3, min: 0.0, max: 1.5, step: 0.05, label: 'Top Bevel — Outer (cm)' },
+      topCapBevelMid:       { value: 0.2, min: 0.0, max: 1.5, step: 0.05, label: 'Top Bevel — Mid (cm)' },
+      topCapBevelInner:     { value: 0.2, min: 0.0, max: 1.5, step: 0.05, label: 'Top Bevel — Inner (cm)' },
     }, { collapsed: false }),
 
     Shaders: folder({

@@ -6,6 +6,11 @@
       "sourceType": "github",
       "computedHash": "11a982752a0ae87f06de0385c88df8f33b0f0a21dba2d9b4e119f78d1167fa4b"
     },
+    "fonts": {
+      "source": "jacbk/persona",
+      "sourceType": "github",
+      "computedHash": "18729ba132838f800170a834cd515791c053ef27c47b25f3717ccd8829900f7e"
+    },
     "threejs-shaders": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",

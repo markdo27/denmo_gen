@@ -1,11 +1,20 @@
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { useStore } from '../../store';
+import { MODULES } from '../../utils/constants';
 import Scene from '../viewport/Scene';
 
 /**
- * Right panel — high-performance Three.js viewport.
+ * Right panel — high-performance Three.js viewport with corner badge overlay.
  */
 export default function RightPanel() {
+  const activeModule  = useStore((s) => s.activeModule);
+  const blueprintMode = useStore((s) => s.blueprintMode);
+
+  const badgeLabel = activeModule === MODULES.TENSEGRITY
+    ? 'TENSEGRITY STRUCTURE'
+    : 'ACOUSTIC FIELD';
+
   return (
     <div className="right-panel">
       <Canvas
@@ -18,6 +27,12 @@ export default function RightPanel() {
           <Scene />
         </Suspense>
       </Canvas>
+
+      {/* Corner orientation badges — outside the canvas so they never interfere with 3D */}
+      <span className="viewport-badge viewport-badge--tl">{badgeLabel}</span>
+      {blueprintMode && (
+        <span className="viewport-badge viewport-badge--br">BLUEPRINT MODE</span>
+      )}
     </div>
   );
 }
