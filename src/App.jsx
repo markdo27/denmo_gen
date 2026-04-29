@@ -10,6 +10,7 @@ import { buildLighterCavityGeometry, roundedRectProfile, BIC_PRESETS } from '../
 import { loopSubdivide } from './algorithms/subdivision.js';
 import { computeVoronoi } from './algorithms/voronoi.js';
 import { analyzeOverhangs, OVERHANG_SAFE, OVERHANG_CAUTION } from './overhangAnalyzer.js';
+import { applyFFD, buildFFDRingsFromParams } from './algorithms/ffd.js';
 import {
   SUPERFORMULA_PRESETS,
   SUPERFORMULA_MODIFIER_PRESETS,
@@ -185,6 +186,29 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       geo.computeVertexNormals();
     }
 
+    // ── FFD post-pass ─────────────────────────────────────────────────────
+    // Apply Free-Form Deformation AFTER all other modifiers so it acts as a
+    // global lattice sculpt on the already-ribbed/twisted/noised surface.
+    //
+    // Bernstein polynomial blending guarantees C² continuity between rings
+    // even with sharp scale differences — no kinks in the silhouette.
+    if (params.ffdEnabled) {
+      const posAttr  = geo.attributes.position;
+      const ffdRings = buildFFDRingsFromParams(params, params.height);
+
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const y = posAttr.getY(i);
+        const z = posAttr.getZ(i);
+        // Keep cap-centre vertices on the axis
+        if (x * x + z * z < 0.0001) continue;
+        const d = applyFFD(x, y, z, ffdRings, params.height);
+        posAttr.setXYZ(i, d.x, d.y, d.z);
+      }
+      posAttr.needsUpdate = true;
+      geo.computeVertexNormals();
+    }
+
     // ── Subdivision surface pass ──────────────────────────────────────────
     const subdivLevel = params.subdivisionLevel || 0;
     if (subdivLevel > 0) {
@@ -288,6 +312,12 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
     params.sfModifier, params.shModifier,
     params.crossSection, params.mirrorX, params.mirrorY, params.mirrorZ,
     params.subdivisionLevel,
+    // FFD deps
+    params.ffdEnabled, params.ffdRows,
+    params.ffdScale0, params.ffdScale1, params.ffdScale2, params.ffdScale3,
+    params.ffdScale4, params.ffdScale5, params.ffdScale6, params.ffdScale7,
+    params.ffdTilt0,  params.ffdTilt1,  params.ffdTilt2,  params.ffdTilt3,
+    params.ffdTilt4,  params.ffdTilt5,  params.ffdTilt6,  params.ffdTilt7,
     rdMap, voronoiMap,
   ]);
 
@@ -381,6 +411,82 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
         />
       )}
     </mesh>
+  );
+}
+
+// ============================================================================
+// FFD LATTICE OVERLAY  (3D viewport component)
+// Renders the control-point lattice cage — one horizontal ring per FFD row,
+// plus vertical struts connecting rings, exactly like the 3ds Max FFD gizmo.
+// ============================================================================
+function FFDLatticeOverlay({ params }) {
+  const geometry = useMemo(() => {
+    if (!params.ffdEnabled || !params.ffdShowLattice) return null;
+
+    const { applyFFD: _applyFFD, buildFFDRingsFromParams: _build } = { applyFFD, buildFFDRingsFromParams };
+    const rows    = Math.max(2, Math.min(8, params.ffdRows ?? 4));
+    const ffdRings = buildFFDRingsFromParams(params, params.height);
+    // Lattice cage radius = max profile radius + small clearance
+    const cageR = Math.max(params.bottomRadius, params.midRadius, params.topRadius) * 1.08;
+    const RING_SEGS = 48;   // circle resolution per ring
+    const positions = [];
+
+    // ── Horizontal rings ────────────────────────────────────────────────
+    for (let ri = 0; ri < rows; ri++) {
+      const t   = ri / (rows - 1);
+      const restY = t * params.height;
+
+      for (let si = 0; si < RING_SEGS; si++) {
+        const a0 = (si / RING_SEGS)       * Math.PI * 2;
+        const a1 = ((si + 1) / RING_SEGS) * Math.PI * 2;
+        const x0 = cageR * Math.cos(a0);
+        const z0 = cageR * Math.sin(a0);
+        const x1 = cageR * Math.cos(a1);
+        const z1 = cageR * Math.sin(a1);
+
+        // Apply FFD to deform the lattice ring itself (so it follows control pts)
+        const d0 = applyFFD(x0, restY, z0, ffdRings, params.height);
+        const d1 = applyFFD(x1, restY, z1, ffdRings, params.height);
+        positions.push(d0.x, d0.y, d0.z, d1.x, d1.y, d1.z);
+      }
+    }
+
+    // ── Vertical struts (8 equally-spaced columns) ─────────────────────
+    const STRUT_COUNT = 8;
+    for (let si = 0; si < STRUT_COUNT; si++) {
+      const angle = (si / STRUT_COUNT) * Math.PI * 2;
+      const xBase = cageR * Math.cos(angle);
+      const zBase = cageR * Math.sin(angle);
+
+      for (let ri = 0; ri < rows - 1; ri++) {
+        const t0 = ri / (rows - 1);
+        const t1 = (ri + 1) / (rows - 1);
+        const y0 = t0 * params.height;
+        const y1 = t1 * params.height;
+        const d0 = applyFFD(xBase, y0, zBase, ffdRings, params.height);
+        const d1 = applyFFD(xBase, y1, zBase, ffdRings, params.height);
+        positions.push(d0.x, d0.y, d0.z, d1.x, d1.y, d1.z);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
+    return geo;
+  }, [
+    params.ffdEnabled, params.ffdShowLattice, params.ffdRows,
+    params.ffdScale0, params.ffdScale1, params.ffdScale2, params.ffdScale3,
+    params.ffdScale4, params.ffdScale5, params.ffdScale6, params.ffdScale7,
+    params.ffdTilt0,  params.ffdTilt1,  params.ffdTilt2,  params.ffdTilt3,
+    params.ffdTilt4,  params.ffdTilt5,  params.ffdTilt6,  params.ffdTilt7,
+    params.height, params.bottomRadius, params.midRadius, params.topRadius,
+  ]);
+
+  if (!geometry) return null;
+  return (
+    <lineSegments geometry={geometry}>
+      {/* Amber/yellow — the classic 3ds Max FFD lattice colour */}
+      <lineBasicMaterial color="#ffcc00" transparent opacity={0.75} depthWrite={false} />
+    </lineSegments>
   );
 }
 
@@ -1130,6 +1236,30 @@ export default function App() {
       topCapBevelInner:     { value: 0.2, min: 0.0, max: 1.5, step: 0.05, label: 'Top Bevel — Inner (cm)' },
     }, { collapsed: false }),
 
+    'FFD Lattice': folder({
+      ffdEnabled:  { value: false, label: 'Enable FFD' },
+      ffdRows:     { value: 4, min: 2, max: 8, step: 1, label: 'Lattice Rings' },
+      ffdShowLattice: { value: true, label: 'Show Lattice' },
+      // ── Per-ring XZ scale (1.0 = no change) ───────────────────────────
+      ffdScale0: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 0 Scale (bottom)' },
+      ffdScale1: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 1 Scale' },
+      ffdScale2: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 2 Scale' },
+      ffdScale3: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 3 Scale' },
+      ffdScale4: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 4 Scale' },
+      ffdScale5: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 5 Scale' },
+      ffdScale6: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 6 Scale' },
+      ffdScale7: { value: 1.0, min: 0.05, max: 3.0, step: 0.01, label: 'Ring 7 Scale (top)' },
+      // ── Per-ring Y tilt (0 = no shift) ────────────────────────────────
+      ffdTilt0:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 0 Tilt Y' },
+      ffdTilt1:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 1 Tilt Y' },
+      ffdTilt2:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 2 Tilt Y' },
+      ffdTilt3:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 3 Tilt Y' },
+      ffdTilt4:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 4 Tilt Y' },
+      ffdTilt5:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 5 Tilt Y' },
+      ffdTilt6:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 6 Tilt Y' },
+      ffdTilt7:  { value: 0, min: -5, max: 5, step: 0.05, label: 'Ring 7 Tilt Y' },
+    }, { collapsed: true }),
+
     Shaders: folder({
       innerGlowIntensity: { value: 3.0, min: 0, max: 10, step: 0.1  },
       surfaceNoise:       { value: 0.5, min: 0, max: 2,  step: 0.05 },
@@ -1170,6 +1300,10 @@ export default function App() {
       params.shModM0, params.shModM1, params.shModM2, params.shModM3,
       params.shModM4, params.shModM5, params.shModM6, params.shModM7,
     ],
+    // FFD rings — packed from flat Leva sliders
+    ffdRings: params.ffdEnabled
+      ? buildFFDRingsFromParams(params, params.height)
+      : null,
   }), [params]);
 
   // ── Auto-set print-ready params when lighter hole is enabled ───────────
@@ -1921,6 +2055,10 @@ export default function App() {
                 voronoiMap={voronoiMap}
                 perLayerAngles={overhangReport.perLayerAngles}
               />
+            )}
+            {/* FFD lattice cage — amber yellow wireframe */}
+            {params.ffdEnabled && (
+              <FFDLatticeOverlay params={enrichedParams} />
             )}
             <pointLight
               position={[0, enrichedParams.height / 2, 0]}
