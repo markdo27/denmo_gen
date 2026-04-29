@@ -185,56 +185,6 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       geo.computeVertexNormals();
     }
 
-    // ── Self-intersection scan ────────────────────────────────────────────
-    // Detect rings where the modifier has pushed r so far inward/outward
-    // that adjacent vertical faces overlap.  We sample N evenly-spaced
-    // angles and check whether the radius profile changes sign (goes through
-    // zero) at any height step — that is the exact topological condition
-    // for a self-intersecting lathe surface.
-    //
-    // Returns a geometry-level flag: geo.userData.hasOverlap (boolean)
-    // and geo.userData.overlapDetail (string) consumed by the UI.
-    {
-      const posAttr  = geo.attributes.position;
-      const N        = params.radialSegments;
-      const vSegments = params.verticalSegments || 100;
-      const SAMPLE_ANGLES = 8;   // 8 angular samples is sufficient for diagnosis
-      let hasOverlap    = false;
-      let firstBadAngle = null;
-      let firstBadT     = null;
-
-      outerScan: for (let si = 0; si < SAMPLE_ANGLES; si++) {
-        const angle = (si / SAMPLE_ANGLES) * Math.PI * 2;
-        let prevR = null;
-
-        for (let vi = 0; vi <= vSegments; vi++) {
-          const t       = vi / vSegments;
-          const evalT   = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
-          const baseR   = getSmoothedProfileRadius(evalT, params, customProfileData);
-          const r       = applyRadiusModifiers(angle, t, t * params.height, baseR, params, rdMap, voronoiMap);
-
-          if (prevR !== null) {
-            // If consecutive rings' modifier pushes r past the OPPOSITE profile
-            // radius at the same height, the surface self-intersects.
-            // Simplified check: if r < rMin * 0.5 (below the floor clamp threshold),
-            // the clamp is being hit hard — that ring is degenerate.
-            if (r <= (params.rMin ?? 0.05) * 1.01) {
-              hasOverlap    = true;
-              firstBadAngle = (angle * 180 / Math.PI).toFixed(1);
-              firstBadT     = (t * 100).toFixed(0);
-              break outerScan;
-            }
-          }
-          prevR = r;
-        }
-      }
-
-      geo.userData.hasOverlap    = hasOverlap;
-      geo.userData.overlapDetail = hasOverlap
-        ? `Self-intersection near angle ${firstBadAngle}\u00b0 / height ${firstBadT}%`
-        : null;
-    }
-
     // ── Subdivision surface pass ──────────────────────────────────────────
     const subdivLevel = params.subdivisionLevel || 0;
     if (subdivLevel > 0) {
@@ -930,37 +880,36 @@ function OverhangWarningPanel({ report }) {
 
 // ============================================================================
 // OVERLAP / SELF-INTERSECTION WARNING PANEL
-// Appears when applyRadiusModifiers pushes the surface inward past rMin,
-// indicating that adjacent faces are overlapping in world space.
+// Appears when overlapReport useMemo detects a surface self-intersection risk.
 // ============================================================================
 function OverlapWarningPanel({ report }) {
   if (!report) return null;
 
+  const isCritical = report.severity === 'critical';
+  const panelClass = `overhang-panel ${isCritical ? 'overhang-critical' : 'overhang-caution'}`;
+
   return (
-    <div className="overhang-panel overhang-critical" role="alert" aria-live="assertive">
+    <div className={panelClass} role="alert" aria-live="assertive">
       <div className="overhang-header" style={{ cursor: 'default' }}>
-        <span className="overhang-icon"><AlertTriangle size={13} /></span>
-        <span className="overhang-title">GEOMETRY OVERLAP</span>
+        <span className="overhang-icon">
+          {isCritical ? <XCircle size={13} /> : <AlertTriangle size={13} />}
+        </span>
+        <span className="overhang-title">
+          {isCritical ? 'GEOMETRY SELF-INTERSECTION' : 'OVERLAP RISK'}
+        </span>
       </div>
       <div className="overhang-body">
         <div className="overhang-zones" style={{ fontFamily: 'monospace', fontSize: '10px', lineHeight: 1.6 }}>
           {report.detail}
         </div>
-        <div className="overhang-suggestions">
-          <div className="overhang-suggestions-title">FIX:</div>
-          <div className="overhang-tip">
-            <span className="tip-param">Rib Depth</span>
-            <span className="tip-arrow">→</span>
-            <span className="tip-val">Reduce</span>
-            <span className="tip-reason">modifier is inverting the surface radius</span>
+        {report.fix && (
+          <div className="overhang-suggestions">
+            <div className="overhang-suggestions-title">FIX:</div>
+            <div className="overhang-tip">
+              <span className="tip-reason">{report.fix}</span>
+            </div>
           </div>
-          <div className="overhang-tip">
-            <span className="tip-param">Base Radius</span>
-            <span className="tip-arrow">→</span>
-            <span className="tip-val">Increase</span>
-            <span className="tip-reason">gives modifiers more headroom before inversion</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1277,31 +1226,103 @@ export default function App() {
     customProfileData, rdMap, voronoiMap,
   ]);
 
-  // ── Overlap report — reads geo.userData flags written by the self-intersection scan
-  // The geometry object is stable between renders (useMemo in Lamp), so we read
-  // its userData through the meshRef after each render via a layout effect.
-  const [overlapReport, setOverlapReport] = useState(null);
+  // ── Overlap / self-intersection report — pure useMemo, no meshRef needed ────────
+  //
+  // THREE distinct failure modes checked in order of severity:
+  //
+  //  1. DEPTH RATIO: modifier depth > 90% of the minimum profile radius.
+  //     The surface will fold through itself before it hits the rMin floor.
+  //
+  //  2. ANGULAR CROSSING: for rib modifiers, the valley radius (baseR - depth)
+  //     must be > 0.  If depth > baseR the rib valley passes through the axis.
+  //
+  //  3. RADIAL SCAN: sample 12 angles × height steps; check if any r sample
+  //     hits the rMin clamp (absolute floor), which means the surface tried to
+  //     invert.  This catches noise + voronoi + RD combinations the ratio check
+  //     misses.
+  const overlapReport = useMemo(() => {
+    const minBaseR = Math.min(
+      params.bottomRadius ?? 1,
+      params.midRadius    ?? 1,
+      params.topRadius    ?? 1,
+    );
 
-  useEffect(() => {
-    // Defer one frame so the Lamp useMemo has committed its geometry
-    const id = requestAnimationFrame(() => {
-      const geo = meshRef.current?.geometry;
-      if (!geo) { setOverlapReport(null); return; }
-      setOverlapReport(
-        geo.userData.hasOverlap
-          ? { detail: geo.userData.overlapDetail }
-          : null
-      );
-    });
-    return () => cancelAnimationFrame(id);
+    // ── Check 1: depth ratio ───────────────────────────────────────────────
+    const depths = [
+      { name: 'Rib',            val: params.ribDepth            || 0 },
+      { name: 'Pedestal',       val: params.pedestalDepth       || 0 },
+      { name: 'Bamboo',         val: params.bambooDepth         || 0 },
+      { name: 'Diamond',        val: params.diamondDepth        || 0 },
+      { name: 'Noise',          val: params.noiseDepth          || 0 },
+      { name: 'Ripple',         val: params.verticalRippleDepth || 0 },
+    ];
+    const worst = depths.reduce((a, b) => a.val > b.val ? a : b);
+    const ratio  = worst.val / Math.max(0.001, minBaseR);
+
+    if (ratio >= 0.9) {
+      return {
+        severity: ratio >= 1.0 ? 'critical' : 'warning',
+        detail: `${worst.name} depth (${worst.val.toFixed(2)}) is ${
+          ratio >= 1.0 ? 'GREATER THAN' : `${(ratio * 100).toFixed(0)}% of`
+        } minimum profile radius (${minBaseR.toFixed(2)}) — surface folds through itself`,
+        fix: `Reduce ${worst.name} depth below ${(minBaseR * 0.85).toFixed(2)} or increase Base Radius`,
+      };
+    }
+
+    // ── Check 2: rib angular valley crossing ───────────────────────────────
+    // Rib valleys occur at r = baseR - ribDepth.  If ribDepth exceeds the
+    // local baseR at any height, the valley crosses the axis.
+    if ((params.ribDepth || 0) > 0) {
+      const vSeg = params.verticalSegments || 100;
+      for (let vi = 0; vi <= vSeg; vi++) {
+        const t     = vi / vSeg;
+        const evalT = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
+        const baseR = getSmoothedProfileRadius(evalT, params, customProfileData);
+        if (params.ribDepth >= baseR) {
+          return {
+            severity: 'critical',
+            detail: `Rib depth (${params.ribDepth.toFixed(2)}) ≥ profile radius at height ${(t * 100).toFixed(0)}% (r=${baseR.toFixed(2)}) — rib valleys cross the axis`,
+            fix: `Reduce Rib Depth below ${(baseR * 0.95).toFixed(2)} or increase the profile radius at that height`,
+          };
+        }
+      }
+    }
+
+    // ── Check 3: radial scan — catches noise/voronoi/RD combos ───────────
+    const SAMPLE_ANGLES = 12;
+    const vSegments     = params.verticalSegments || 100;
+    const rMinFloor     = params.rMin ?? 0.05;
+
+    for (let si = 0; si < SAMPLE_ANGLES; si++) {
+      const angle = (si / SAMPLE_ANGLES) * Math.PI * 2;
+      for (let vi = 0; vi <= vSegments; vi++) {
+        const t      = vi / vSegments;
+        const evalT  = (params.mirrorY && t > 0.5) ? 1.0 - t : t;
+        const baseR  = getSmoothedProfileRadius(evalT, params, customProfileData);
+        const r      = applyRadiusModifiers(angle, t, t * params.height, baseR, params, rdMap, voronoiMap);
+        // r is already clamped; hitting exactly rMinFloor means inversion was attempted
+        if (r <= rMinFloor * 1.01) {
+          return {
+            severity: 'warning',
+            detail: `Surface inversion at angle ${(angle * 180 / Math.PI).toFixed(0)}° / height ${(t * 100).toFixed(0)}% — combined modifiers exceeded profile radius`,
+            fix: 'Reduce noise, voronoi, or RD depth, or increase Base Radius',
+          };
+        }
+      }
+    }
+
+    return null;  // no overlap detected
   }, [
-    // Re-check whenever any modifier that could cause self-intersection changes
-    params.ribDepth, params.ribFreq, params.ribProfile, params.ribTension,
-    params.pedestalDepth, params.bambooDepth, params.diamondDepth,
-    params.noiseDepth, params.verticalRippleDepth,
+    params.ribDepth, params.ribFreq, params.ribProfile, params.ribTension, params.ribPhase,
+    params.pedestalDepth, params.pedestalRibs, params.pedestalRatio,
+    params.bambooDepth, params.bambooSteps, params.bambooVerticalFreq,
+    params.diamondDepth, params.diamondFreq,
+    params.noiseDepth, params.noiseScale,
+    params.verticalRippleDepth, params.verticalRipples,
     params.bottomRadius, params.midRadius, params.topRadius,
     params.height, params.verticalProfile, params.mirrorY,
-    params.crossSection, rdMap, voronoiMap, customProfileData,
+    params.crossSection, params.rMin,
+    rdMap, voronoiMap, customProfileData,
   ]);
 
   // ── Helper: remove degenerate triangles (near-zero area) from geometry ──
