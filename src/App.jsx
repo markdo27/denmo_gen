@@ -110,9 +110,7 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
       // but due to floating-point sin(2pi) != 0, atan2 returns a slightly
       // different angle. We record the first column's final positions and
       // overwrite the last column after the modifier pass.
-      const N = params.radialSegments;
-      const vertsPerRing = N + 1;             // LatheGeometry always N+1
-      const profileRings = points.length;     // one ring per 2D profile point
+      const N = params.radialSegments;   // needed for seam-weld indices below
 
       for (let i = 0; i < posAttr.count; i++) {
         vtx.fromBufferAttribute(posAttr, i);
@@ -140,24 +138,33 @@ function Lamp({ params, customProfileData, materialProps, meshRef, isGlowing, rd
         posAttr.setXYZ(i, r * Math.cos(finalAngle), vtx.y, r * Math.sin(finalAngle));
       }
 
+
       // ── Seam-weld post-pass ───────────────────────────────────────────────
-      // LatheGeometry stores rings as row-major: vertex[ring * vertsPerRing + col].
-      // Column 0 (theta=0) and column N (theta=2pi) must be identical.
-      // Copy column-0 XYZ into column-N for every profile ring to guarantee
-      // a closed manifold with zero seam gap.
-      for (let ring = 0; ring < profileRings; ring++) {
-        const col0 = ring * vertsPerRing + 0;
-        const colN = ring * vertsPerRing + N;
+      // LatheGeometry ACTUAL memory layout (from Three.js source):
+      //   outer loop: i = 0..segments  (radial)
+      //   inner loop: j = 0..points.length-1  (profile height)
+      //   vertex index = i * M + j    where M = points.length
+      //
+      // This is COLUMN-MAJOR (not row-major). My earlier assumption was wrong.
+      // Column 0 (i=0): indices 0, 1, ..., M-1
+      // Column N (i=N): indices N*M, N*M+1, ..., N*M + M-1
+      //
+      // Copy col-0's final XYZ into col-N to guarantee a closed manifold.
+      const M = points.length;  // number of 2D profile points
+      for (let j = 0; j < M; j++) {
+        const col0idx = j;          // i=0: 0*M + j
+        const colNidx = N * M + j;  // i=N: N*M + j
         posAttr.setXYZ(
-          colN,
-          posAttr.getX(col0),
-          posAttr.getY(col0),   // Y must also match (profile height same)
-          posAttr.getZ(col0),
+          colNidx,
+          posAttr.getX(col0idx),
+          posAttr.getY(col0idx),
+          posAttr.getZ(col0idx),
         );
       }
       posAttr.needsUpdate = true;
       geo.computeVertexNormals();
     }
+
 
     // ── Cap closure pass (runs always, outside needsPass) ────────────────
     // Ensures cap center vertices converge to exact axis and caps are flat.
