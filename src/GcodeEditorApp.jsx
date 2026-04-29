@@ -449,11 +449,14 @@ export default function GcodeEditorApp() {
     setError('');
     try {
       const ext = file.name.split('.').pop().toLowerCase();
+      if (!['gcode', 'gc', 'g', '3mf', 'ufp', 'zip'].includes(ext)) {
+        throw new Error(`Unsupported file type: .${ext}. Use .gcode, .3mf, or .ufp`);
+      }
       let text = '';
 
       if (ext === 'gcode' || ext === 'gc' || ext === 'g') {
         text = await file.text();
-      } else if (ext === '3mf' || ext === 'ufp' || ext === 'zip') {
+      } else {
         // Unpack zip with fflate
         const { unzip } = await import('fflate');
         const buf = await file.arrayBuffer();
@@ -495,7 +498,6 @@ export default function GcodeEditorApp() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop, multiple: false,
-    accept: { 'model/*': ['.gcode', '.gc', '.g', '.3mf', '.ufp'] },
   });
 
   // ── History / Undo ───────────────────────────────────────────────────────
