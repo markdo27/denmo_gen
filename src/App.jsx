@@ -1357,6 +1357,12 @@ export default function App() {
     params.rdDepth, params.voronoiDepth,
     params.crossSection, params.mirrorX, params.mirrorZ,
     params.layerHeight, params.bedX, params.bedY,
+    // FFD — changes the effective radius at every height step
+    params.ffdEnabled, params.ffdRows,
+    params.ffdScale0, params.ffdScale1, params.ffdScale2, params.ffdScale3,
+    params.ffdScale4, params.ffdScale5, params.ffdScale6, params.ffdScale7,
+    params.ffdTilt0,  params.ffdTilt1,  params.ffdTilt2,  params.ffdTilt3,
+    params.ffdTilt4,  params.ffdTilt5,  params.ffdTilt6,  params.ffdTilt7,
     customProfileData, rdMap, voronoiMap,
   ]);
 
@@ -1456,6 +1462,10 @@ export default function App() {
     params.bottomRadius, params.midRadius, params.topRadius,
     params.height, params.verticalProfile, params.mirrorY,
     params.crossSection, params.rMin,
+    // FFD — scales the effective radius so overlap thresholds change
+    params.ffdEnabled, params.ffdRows,
+    params.ffdScale0, params.ffdScale1, params.ffdScale2, params.ffdScale3,
+    params.ffdScale4, params.ffdScale5, params.ffdScale6, params.ffdScale7,
     rdMap, voronoiMap, customProfileData,
   ]);
 

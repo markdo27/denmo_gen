@@ -10,6 +10,7 @@
  */
 
 import { getSmoothedProfileRadius, applyRadiusModifiers } from './lampMath.js';
+import { sampleFFDScale, buildFFDRingsFromParams } from './algorithms/ffd.js';
 
 // ─── Thresholds (degrees) ────────────────────────────────────────────────────
 export const OVERHANG_SAFE     = 40;   // ≤ 40° → OK for almost all materials
@@ -38,8 +39,30 @@ export function analyzeOverhangs(params, customProfileData, rdMap, voronoiMap) {
     bedX, bedY,
   } = params;
 
-  // ── Bed fit check ────────────────────────────────────────────────────────
-  const maxRadiusCm  = Math.max(bottomRadius, midRadius, topRadius);
+  // ── FFD ring array (used in both bed-fit and overhang scan) ─────────────
+  // FFD is a post-pass on the geometry; the analyzer must mirror that to
+  // report the actual printed radius, not the pre-deformation radius.
+  const ffdEnabled = !!params.ffdEnabled;
+  const ffdRings   = ffdEnabled ? buildFFDRingsFromParams(params, height) : null;
+
+  // Helper: apply FFD XZ scale to a radius at normalised height t
+  const ffdScale = (t) => ffdEnabled ? sampleFFDScale(t, ffdRings) : 1;
+
+  // ── Bed fit check ─────────────────────────────────────────────────────────
+  // If FFD is active the effective max radius is the profile max × FFD scale
+  // at the ring that produces the largest outward deflection.
+  let maxRadiusCm = Math.max(bottomRadius, midRadius, topRadius);
+  if (ffdEnabled) {
+    // Sample the full height range to find the peak effective radius
+    const N = 100;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const evalT  = (params.mirrorY && t > 0.5) ? 1 - t : t;
+      const baseR  = getSmoothedProfileRadius(evalT, params, customProfileData);
+      const scaled = baseR * ffdScale(t);
+      if (scaled > maxRadiusCm) maxRadiusCm = scaled;
+    }
+  }
   const diameterMm   = maxRadiusCm * 2 * SCALE;
   const heightMm     = height * SCALE;
   const bedFitsX     = diameterMm <= bedX;
@@ -74,8 +97,12 @@ export function analyzeOverhangs(params, customProfileData, rdMap, voronoiMap) {
     for (let ai = 0; ai < SAMPLE_ANGLES; ai++) {
       const angle = ai * angleStep;
 
-      const r0 = applyRadiusModifiers(angle, t0, z0, baseR0, params, rdMap, voronoiMap);
-      const r1 = applyRadiusModifiers(angle, t1, z1, baseR1, params, rdMap, voronoiMap);
+      const r0raw = applyRadiusModifiers(angle, t0, z0, baseR0, params, rdMap, voronoiMap);
+      const r1raw = applyRadiusModifiers(angle, t1, z1, baseR1, params, rdMap, voronoiMap);
+
+      // Apply FFD XZ scale so the analyzer sees the same radius the mesh does
+      const r0 = r0raw * ffdScale(t0);
+      const r1 = r1raw * ffdScale(t1);
 
       const deltaR = r1 - r0;   // positive = expanding outward (overhang risk)
       const deltaZ = zStep;
