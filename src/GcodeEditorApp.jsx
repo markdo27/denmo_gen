@@ -467,8 +467,6 @@ export default function GcodeEditorApp() {
         const gcKey = Object.keys(zip).find(k => k.endsWith('.gcode'));
         if (!gcKey) throw new Error('No .gcode file found inside the archive.');
         text = new TextDecoder().decode(zip[gcKey]);
-      } else {
-        throw new Error(`Unsupported file type: .${ext}`);
       }
 
       setLoadProgress(40);
